@@ -1,0 +1,26 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*~
+
+# Go build artifacts（W0+ 代码产生）
+/bin/
+*.test
+*.prof
+coverage.out
+
+# Python worker（W0+ 代码产生）
+__pycache__/
+*.py[cod]
+.venv/
+.ruff_cache/
+
+# 测试 vault 的运行期派生数据（可重建，不入库）
+testdata/**/.wikimind/index.db
+testdata/**/.wikimind/index.db-*
+testdata/**/wiki/_worktrees/

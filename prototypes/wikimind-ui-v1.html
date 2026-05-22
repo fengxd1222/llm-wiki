@@ -1,0 +1,2646 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1440, initial-scale=1.0">
+  <title>WikiMind — LLM Wiki UI Prototype v1</title>
+  <style>
+    /* =========================================================
+       Design Tokens
+       ========================================================= */
+    :root {
+      --bg: #ffffff;
+      --bg-elevated: #fafafa;
+      --bg-hover: #f4f4f5;
+      --bg-active: #eef2ff;
+      --border: #e4e4e7;
+      --border-strong: #d4d4d8;
+      --text: #18181b;
+      --text-secondary: #52525b;
+      --text-tertiary: #a1a1aa;
+      --text-disabled: #d4d4d8;
+
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --accent-bg: #eff6ff;
+      --accent-border: #bfdbfe;
+
+      --success: #16a34a;
+      --success-bg: #f0fdf4;
+      --success-border: #bbf7d0;
+
+      --warn: #d97706;
+      --warn-bg: #fffbeb;
+      --warn-border: #fde68a;
+
+      --error: #dc2626;
+      --error-bg: #fef2f2;
+      --error-border: #fecaca;
+
+      --info: #0ea5e9;
+      --info-bg: #f0f9ff;
+      --info-border: #bae6fd;
+
+      --purple: #9333ea;
+      --purple-bg: #faf5ff;
+      --purple-border: #e9d5ff;
+
+      --diff-add-bg: #f0fdf4;
+      --diff-add-border: #86efac;
+      --diff-del-bg: #fef2f2;
+      --diff-del-border: #fca5a5;
+
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+      --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+      --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.08);
+
+      --radius-sm: 4px;
+      --radius: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+
+      --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                   "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+
+    [data-theme="dark"] {
+      --bg: #0a0a0a;
+      --bg-elevated: #131316;
+      --bg-hover: #1f1f23;
+      --bg-active: #1e2a5e;
+      --border: #27272a;
+      --border-strong: #3f3f46;
+      --text: #fafafa;
+      --text-secondary: #a1a1aa;
+      --text-tertiary: #71717a;
+      --text-disabled: #52525b;
+
+      --accent: #3b82f6;
+      --accent-hover: #60a5fa;
+      --accent-bg: #1e3a8a40;
+      --accent-border: #1e3a8a;
+
+      --success: #22c55e;
+      --success-bg: #14532d40;
+      --success-border: #14532d;
+
+      --warn: #f59e0b;
+      --warn-bg: #78350f40;
+      --warn-border: #78350f;
+
+      --error: #ef4444;
+      --error-bg: #7f1d1d40;
+      --error-border: #7f1d1d;
+
+      --info: #38bdf8;
+      --info-bg: #0c4a6e40;
+      --info-border: #0c4a6e;
+
+      --purple: #a855f7;
+      --purple-bg: #581c8740;
+      --purple-border: #581c87;
+
+      --diff-add-bg: #14532d30;
+      --diff-add-border: #16a34a;
+      --diff-del-bg: #7f1d1d30;
+      --diff-del-border: #dc2626;
+
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+      --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(0, 0, 0, 0.4);
+      --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.6);
+    }
+
+    /* =========================================================
+       Reset
+       ========================================================= */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--text);
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+    code, pre, .mono { font-family: var(--font-mono); font-size: 0.92em; }
+    ul, ol { list-style: none; }
+    svg { display: block; }
+
+    /* =========================================================
+       Layout
+       ========================================================= */
+    body {
+      display: grid;
+      grid-template-rows: 48px 1fr;
+      grid-template-columns: 240px 1fr;
+      grid-template-areas:
+        "topbar topbar"
+        "sidebar main";
+      height: 100vh;
+      overflow: hidden;
+    }
+    .topbar { grid-area: topbar; }
+    .sidebar { grid-area: sidebar; }
+    .main { grid-area: main; overflow: auto; }
+
+    /* =========================================================
+       Topbar
+       ========================================================= */
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 0 16px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      width: 224px;
+    }
+    .brand-logo {
+      width: 22px; height: 22px;
+      border-radius: var(--radius-sm);
+      background: linear-gradient(135deg, var(--accent), var(--purple));
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-weight: 700;
+      font-size: 12px;
+    }
+    .vault-switcher {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-elevated);
+      font-size: 13px;
+      cursor: pointer;
+      color: var(--text-secondary);
+    }
+    .vault-switcher:hover { background: var(--bg-hover); }
+    .vault-switcher .vault-name { color: var(--text); font-weight: 500; }
+    .search-box {
+      flex: 1;
+      max-width: 480px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-elevated);
+      color: var(--text-tertiary);
+      font-size: 13px;
+    }
+    .search-box kbd {
+      margin-left: auto;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 1px 5px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--text-tertiary);
+      background: var(--bg);
+    }
+    .topbar-spacer { flex: 1; }
+    .agent-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      background: var(--bg-elevated);
+    }
+    .agent-pill .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--success) 25%, transparent);
+    }
+    .icon-btn {
+      width: 32px; height: 32px;
+      display: grid;
+      place-items: center;
+      border-radius: var(--radius);
+      color: var(--text-secondary);
+    }
+    .icon-btn:hover { background: var(--bg-hover); color: var(--text); }
+
+    /* =========================================================
+       Sidebar
+       ========================================================= */
+    .sidebar {
+      background: var(--bg-elevated);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 8px 8px 12px;
+      overflow-y: auto;
+    }
+    .sidebar-section {
+      margin-bottom: 4px;
+    }
+    .sidebar-label {
+      padding: 8px 10px 4px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-tertiary);
+      font-weight: 600;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 10px;
+      border-radius: var(--radius);
+      color: var(--text-secondary);
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.1s ease;
+    }
+    .nav-item:hover { background: var(--bg-hover); color: var(--text); }
+    .nav-item.active {
+      background: var(--accent-bg);
+      color: var(--accent);
+      font-weight: 500;
+    }
+    .nav-item.disabled {
+      color: var(--text-disabled);
+      cursor: not-allowed;
+    }
+    .nav-item.disabled:hover { background: transparent; color: var(--text-disabled); }
+    .nav-item .nav-icon {
+      width: 16px; height: 16px;
+      flex-shrink: 0;
+      display: grid;
+      place-items: center;
+      font-size: 14px;
+    }
+    .nav-item .nav-text { flex: 1; }
+    .nav-item .nav-badge {
+      font-size: 11px;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: var(--bg-hover);
+      color: var(--text-secondary);
+      font-variant-numeric: tabular-nums;
+    }
+    .nav-item.active .nav-badge {
+      background: var(--accent);
+      color: #fff;
+    }
+    .nav-item .nav-badge.warn {
+      background: var(--warn-bg);
+      color: var(--warn);
+    }
+
+    .sidebar-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 8px 6px;
+    }
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 6px;
+    }
+    .vault-info-card {
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg);
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+    .vault-info-card .vault-info-title {
+      display: flex; align-items: center; gap: 6px;
+      color: var(--text);
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+    .health-score {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: conic-gradient(var(--success) 0 313deg, var(--bg-hover) 313deg 360deg);
+      display: grid;
+      place-items: center;
+      font-size: 9px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .health-score::after {
+      content: "";
+      position: absolute;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--bg);
+    }
+    .health-score-wrap { position: relative; }
+    .health-score-wrap .num {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      font-size: 9px;
+      font-weight: 600;
+      color: var(--text);
+      z-index: 1;
+    }
+    .theme-toggle {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 6px 10px;
+      margin-top: 8px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 12px;
+      color: var(--text-secondary);
+      background: var(--bg);
+    }
+    .theme-toggle:hover { background: var(--bg-hover); color: var(--text); }
+
+    /* =========================================================
+       Common Components
+       ========================================================= */
+    .scene { display: none; padding: 24px 32px; max-width: 1400px; }
+    .scene.active { display: block; }
+
+    .page-header {
+      margin-bottom: 24px;
+    }
+    .page-header h1 {
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    .page-header .subtitle {
+      margin-top: 4px;
+      color: var(--text-secondary);
+      font-size: 13px;
+    }
+    .page-header-row {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+    }
+    .card-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .card-header h3 {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .card-header .card-meta {
+      font-size: 12px;
+      color: var(--text-tertiary);
+    }
+    .card-body { padding: 16px; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 500;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      transition: background 0.1s ease, border-color 0.1s ease;
+    }
+    .btn:hover { background: var(--bg-hover); border-color: var(--border-strong); }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+    .btn-danger {
+      background: var(--bg);
+      color: var(--error);
+      border-color: var(--error-border);
+    }
+    .btn-danger:hover {
+      background: var(--error-bg);
+    }
+    .btn-ghost { border-color: transparent; color: var(--text-secondary); }
+    .btn-ghost:hover { color: var(--text); }
+    .btn-sm { padding: 4px 8px; font-size: 12px; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 1.5;
+      background: var(--bg-hover);
+      color: var(--text-secondary);
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+    .badge.accent { background: var(--accent-bg); color: var(--accent); border-color: var(--accent-border); }
+    .badge.success { background: var(--success-bg); color: var(--success); border-color: var(--success-border); }
+    .badge.warn { background: var(--warn-bg); color: var(--warn); border-color: var(--warn-border); }
+    .badge.error { background: var(--error-bg); color: var(--error); border-color: var(--error-border); }
+    .badge.info { background: var(--info-bg); color: var(--info); border-color: var(--info-border); }
+    .badge.purple { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-border); }
+
+    .agent-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 8px 2px 4px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 500;
+      background: var(--bg-hover);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+    .agent-badge .agent-avatar {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 8px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .agent-claude .agent-avatar { background: #d97706; }
+    .agent-codex .agent-avatar { background: #16a34a; }
+    .agent-hermes .agent-avatar { background: #9333ea; }
+    .agent-cursor .agent-avatar { background: #0ea5e9; }
+    .agent-user .agent-avatar { background: #52525b; }
+
+    .kbd {
+      display: inline-block;
+      padding: 1px 5px;
+      border: 1px solid var(--border);
+      border-bottom-width: 2px;
+      border-radius: 3px;
+      background: var(--bg-elevated);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    /* =========================================================
+       Scene: Dashboard
+       ========================================================= */
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .metric-card {
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg);
+    }
+    .metric-card .metric-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+    .metric-card .metric-value {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      font-size: 26px;
+      font-weight: 600;
+      line-height: 1.1;
+      letter-spacing: -0.01em;
+      font-variant-numeric: tabular-nums;
+    }
+    .metric-card .metric-value .delta {
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .delta.up { color: var(--warn); }
+    .delta.down { color: var(--success); }
+    .metric-card .metric-sub {
+      margin-top: 8px;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .metric-card .metric-sparkline {
+      margin-top: 8px;
+      height: 28px;
+      width: 100%;
+      color: var(--accent);
+      opacity: 0.85;
+    }
+
+    .dash-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 12px;
+    }
+
+    .chart-card {
+      padding: 16px;
+    }
+    .chart-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .chart-title h3 {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .chart-legend {
+      display: flex;
+      gap: 12px;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+    .chart-legend span { display: inline-flex; align-items: center; gap: 4px; }
+    .chart-legend .dot { width: 8px; height: 8px; border-radius: 2px; }
+
+    .chart-svg { width: 100%; height: 180px; }
+
+    .activity-feed { padding: 0; }
+    .activity-item {
+      display: grid;
+      grid-template-columns: 28px 1fr auto;
+      gap: 10px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      align-items: center;
+    }
+    .activity-item:last-child { border-bottom: 0; }
+    .activity-item:hover { background: var(--bg-elevated); }
+    .activity-avatar {
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .activity-body { font-size: 13px; line-height: 1.5; }
+    .activity-body .who { font-weight: 500; }
+    .activity-body .what { color: var(--text-secondary); }
+    .activity-body .where {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--accent);
+    }
+    .activity-time {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      white-space: nowrap;
+    }
+
+    .health-card { padding: 16px; }
+    .health-big {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .health-ring {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      background: conic-gradient(var(--success) 0 313deg, var(--bg-hover) 313deg 360deg);
+      display: grid;
+      place-items: center;
+      position: relative;
+    }
+    .health-ring::before {
+      content: "";
+      position: absolute;
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      background: var(--bg);
+    }
+    .health-ring .score {
+      position: relative;
+      z-index: 1;
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+    .health-meta { color: var(--text-secondary); font-size: 12px; }
+    .health-meta strong { display: block; color: var(--text); font-size: 14px; }
+
+    .tip-list { display: flex; flex-direction: column; gap: 10px; }
+    .tip {
+      display: grid;
+      grid-template-columns: 24px 1fr auto;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-elevated);
+    }
+    .tip-icon {
+      width: 24px; height: 24px;
+      border-radius: var(--radius);
+      display: grid;
+      place-items: center;
+      font-size: 12px;
+    }
+    .tip-icon.warn { background: var(--warn-bg); color: var(--warn); }
+    .tip-icon.info { background: var(--info-bg); color: var(--info); }
+    .tip-icon.error { background: var(--error-bg); color: var(--error); }
+    .tip-body { font-size: 13px; line-height: 1.4; }
+    .tip-body .tip-title { font-weight: 500; }
+    .tip-body .tip-desc { color: var(--text-secondary); font-size: 12px; margin-top: 2px; }
+    .tip-action { font-size: 11px; color: var(--accent); align-self: center; }
+
+    /* =========================================================
+       Scene: Review Queue
+       ========================================================= */
+    .review-layout {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 16px;
+    }
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 12px 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg);
+      margin-bottom: 12px;
+    }
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .filter-group .filter-label {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-right: 4px;
+    }
+    .chip {
+      padding: 3px 10px;
+      font-size: 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+    .chip:hover { background: var(--bg-hover); }
+    .chip.active {
+      background: var(--accent-bg);
+      color: var(--accent);
+      border-color: var(--accent-border);
+      font-weight: 500;
+    }
+    .chip.solid-warn {
+      background: var(--warn-bg);
+      color: var(--warn);
+      border-color: var(--warn-border);
+    }
+
+    .bundle-group {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg);
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+    .bundle-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+    }
+    .bundle-header:hover { background: var(--bg-hover); }
+    .bundle-header .bundle-title {
+      font-weight: 500;
+      font-size: 13px;
+    }
+    .bundle-header .bundle-meta {
+      color: var(--text-tertiary);
+      font-size: 12px;
+      font-family: var(--font-mono);
+    }
+    .bundle-header .bundle-spacer { flex: 1; }
+    .bundle-toggle {
+      color: var(--text-tertiary);
+      font-size: 12px;
+    }
+
+    .propose-card {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+    .propose-card:last-child { border-bottom: 0; }
+    .propose-card.selected {
+      background: var(--accent-bg);
+      box-shadow: inset 2px 0 0 var(--accent);
+    }
+    .propose-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .propose-path {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text);
+      font-weight: 500;
+    }
+    .propose-path .path-prefix { color: var(--text-tertiary); }
+    .propose-id {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-tertiary);
+    }
+    .propose-time {
+      font-size: 11px;
+      color: var(--text-tertiary);
+    }
+    .propose-spacer { flex: 1; }
+
+    .diff-block {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .diff-line {
+      display: grid;
+      grid-template-columns: 36px 12px 1fr;
+      align-items: stretch;
+    }
+    .diff-line .line-num {
+      padding: 0 8px;
+      text-align: right;
+      color: var(--text-tertiary);
+      background: var(--bg-elevated);
+      border-right: 1px solid var(--border);
+      user-select: none;
+    }
+    .diff-line .sign {
+      text-align: center;
+      color: var(--text-tertiary);
+      background: var(--bg-elevated);
+    }
+    .diff-line .content {
+      padding: 0 10px;
+      white-space: pre;
+      overflow: hidden;
+    }
+    .diff-line.add { background: var(--diff-add-bg); }
+    .diff-line.add .sign { color: var(--success); background: var(--diff-add-bg); }
+    .diff-line.del { background: var(--diff-del-bg); }
+    .diff-line.del .sign { color: var(--error); background: var(--diff-del-bg); }
+    .diff-collapsed {
+      padding: 6px 12px;
+      font-size: 12px;
+      color: var(--text-tertiary);
+      background: var(--bg-elevated);
+      border-top: 1px solid var(--border);
+      text-align: center;
+      cursor: pointer;
+    }
+    .diff-collapsed:hover { color: var(--accent); }
+
+    .propose-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .propose-meta .meta-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .propose-meta .meta-item strong {
+      color: var(--text);
+      font-weight: 500;
+    }
+    .propose-meta code {
+      background: var(--bg-elevated);
+      padding: 1px 5px;
+      border-radius: 3px;
+      border: 1px solid var(--border);
+    }
+
+    .propose-actions {
+      display: flex;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+
+    /* Right sidebar — bundle inspector */
+    .inspector {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg);
+      padding: 16px;
+      position: sticky;
+      top: 0;
+      align-self: start;
+    }
+    .inspector h3 {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+    .inspector-section { margin-bottom: 16px; }
+    .inspector-section:last-child { margin-bottom: 0; }
+    .inspector-section .sec-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-tertiary);
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .dep-graph {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .dep-node {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 12px;
+      font-family: var(--font-mono);
+      background: var(--bg-elevated);
+    }
+    .dep-node.root {
+      border-color: var(--accent-border);
+      background: var(--accent-bg);
+      color: var(--accent);
+      font-weight: 500;
+    }
+    .dep-arrow {
+      padding-left: 16px;
+      color: var(--text-tertiary);
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+    .impact-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .impact-list li {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .impact-list .impact-num {
+      font-family: var(--font-mono);
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    /* =========================================================
+       Scene: Wiki
+       ========================================================= */
+    .wiki-layout {
+      display: grid;
+      grid-template-columns: 220px 1fr 280px;
+      gap: 16px;
+      min-height: calc(100vh - 48px - 48px);
+    }
+    .wiki-tree {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg);
+      padding: 12px 8px;
+      font-size: 13px;
+      align-self: start;
+      position: sticky;
+      top: 0;
+      max-height: calc(100vh - 48px - 48px);
+      overflow-y: auto;
+    }
+    .tree-section {
+      padding: 6px 6px 4px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-tertiary);
+      font-weight: 600;
+    }
+    .tree-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .tree-item:hover { background: var(--bg-hover); color: var(--text); }
+    .tree-item.active {
+      background: var(--purple-bg);
+      color: var(--purple);
+      font-weight: 500;
+    }
+    .tree-item .tree-icon {
+      width: 14px;
+      flex-shrink: 0;
+      font-size: 11px;
+      color: var(--text-tertiary);
+      text-align: center;
+    }
+    .tree-item.dir { color: var(--text); font-weight: 500; }
+    .tree-children { padding-left: 14px; border-left: 1px dashed var(--border); margin-left: 12px; }
+    .tree-item.claim { color: var(--purple); }
+    .tree-item.entity { color: var(--accent); }
+    .tree-item.concept { color: var(--success); }
+    .tree-item.source { color: var(--text-secondary); }
+
+    .wiki-content {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg);
+      padding: 28px 36px;
+    }
+    .wiki-breadcrumb {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      margin-bottom: 8px;
+      font-family: var(--font-mono);
+    }
+    .wiki-breadcrumb .sep { margin: 0 4px; }
+    .wiki-title-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .wiki-title-row h1 {
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    .wiki-frontmatter {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-elevated);
+      margin-bottom: 20px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+    .wiki-frontmatter summary {
+      padding: 10px 14px;
+      cursor: pointer;
+      color: var(--text-secondary);
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .wiki-frontmatter summary::before {
+      content: "▸";
+      transition: transform 0.15s;
+      color: var(--text-tertiary);
+      width: 10px;
+    }
+    .wiki-frontmatter[open] summary::before { transform: rotate(90deg); }
+    .wiki-frontmatter .frontmatter-body {
+      padding: 0 14px 12px;
+      border-top: 1px solid var(--border);
+      padding-top: 10px;
+    }
+    .frontmatter-line {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 8px;
+      padding: 2px 0;
+      color: var(--text-secondary);
+    }
+    .frontmatter-line .k { color: var(--purple); }
+    .frontmatter-line .v { color: var(--text); }
+
+    .wiki-body {
+      font-size: 15px;
+      line-height: 1.7;
+      color: var(--text);
+    }
+    .wiki-body p { margin-bottom: 14px; }
+    .wiki-body .wikilink {
+      color: var(--accent);
+      border-bottom: 1px dashed var(--accent-border);
+      padding-bottom: 1px;
+      cursor: pointer;
+    }
+    .wiki-body .wikilink.claim { color: var(--purple); border-color: var(--purple-border); }
+    .wiki-body .wikilink.concept { color: var(--success); border-color: var(--success-border); }
+
+    .wiki-section-title {
+      margin: 28px 0 12px;
+      font-size: 16px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .wiki-section-title .count {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      font-weight: 400;
+    }
+
+    .source-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg-elevated);
+      padding: 14px 16px;
+      margin-bottom: 10px;
+    }
+    .source-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+    .source-path {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text);
+      font-weight: 500;
+    }
+    .source-anchor {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--accent);
+    }
+    .source-quote {
+      padding: 10px 14px;
+      border-left: 3px solid var(--accent);
+      background: var(--bg);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    .source-quote.drift {
+      border-left-color: var(--warn);
+    }
+    .source-meta {
+      display: flex;
+      gap: 14px;
+      font-size: 11px;
+      color: var(--text-tertiary);
+      font-family: var(--font-mono);
+    }
+    .source-meta .meta-ok { color: var(--success); }
+    .source-meta .meta-warn { color: var(--warn); }
+
+    .history-list { font-size: 12px; }
+    .history-item {
+      display: grid;
+      grid-template-columns: 80px 1fr auto;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px dashed var(--border);
+    }
+    .history-item:last-child { border-bottom: 0; }
+    .history-sha { font-family: var(--font-mono); color: var(--accent); }
+    .history-msg { color: var(--text); }
+    .history-when { color: var(--text-tertiary); }
+
+    .wiki-side {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg);
+      padding: 16px;
+      align-self: start;
+      position: sticky;
+      top: 0;
+      max-height: calc(100vh - 48px - 48px);
+      overflow-y: auto;
+    }
+    .side-section { margin-bottom: 20px; }
+    .side-section:last-child { margin-bottom: 0; }
+    .side-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-tertiary);
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .backref-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: var(--radius);
+      font-size: 12px;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+    .backref-item:hover { background: var(--bg-hover); color: var(--text); }
+    .backref-item .br-icon {
+      width: 14px;
+      font-size: 11px;
+    }
+    .related-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin: 2px 4px 2px 0;
+    }
+
+    /* =========================================================
+       Scene: Ingest
+       ========================================================= */
+    .ingest-timeline {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr) auto;
+      gap: 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg);
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    .stage {
+      padding: 14px 16px;
+      border-right: 1px solid var(--border);
+      position: relative;
+    }
+    .stage:last-of-type { border-right: 0; }
+    .stage .stage-num {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      font-family: var(--font-mono);
+      margin-bottom: 4px;
+    }
+    .stage .stage-name {
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .stage .stage-meta {
+      font-size: 11px;
+      color: var(--text-tertiary);
+    }
+    .stage.done { background: var(--success-bg); }
+    .stage.done .stage-name { color: var(--success); }
+    .stage.active { background: var(--accent-bg); }
+    .stage.active .stage-name { color: var(--accent); }
+    .stage.pending { background: var(--bg); }
+    .stage.pending .stage-name { color: var(--text-tertiary); }
+    .stage-action {
+      padding: 14px 16px;
+      display: grid;
+      place-items: center;
+      background: var(--bg-elevated);
+    }
+
+    .ingest-grid {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .file-list { padding: 0; }
+    .file-row {
+      display: grid;
+      grid-template-columns: 16px 1fr auto;
+      gap: 10px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      align-items: center;
+      cursor: pointer;
+    }
+    .file-row:last-child { border-bottom: 0; }
+    .file-row:hover { background: var(--bg-elevated); }
+    .file-row.selected {
+      background: var(--accent-bg);
+      box-shadow: inset 2px 0 0 var(--accent);
+    }
+    .file-icon { font-size: 13px; }
+    .file-name {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text);
+    }
+    .file-name .file-meta {
+      display: block;
+      color: var(--text-tertiary);
+      font-size: 11px;
+      margin-top: 2px;
+    }
+
+    .file-detail .detail-section {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .file-detail .detail-section:last-child { border-bottom: 0; }
+    .detail-meta {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px 14px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+    }
+    .detail-meta .k { color: var(--text-tertiary); }
+    .detail-meta .v { color: var(--text); }
+
+    .extracted-claim {
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-elevated);
+      margin-bottom: 8px;
+    }
+    .extracted-claim:last-child { margin-bottom: 0; }
+    .ec-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      font-size: 12px;
+    }
+    .ec-id {
+      font-family: var(--font-mono);
+      color: var(--text-tertiary);
+    }
+    .ec-text {
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--text);
+    }
+
+    .worker-pool {
+      padding: 0;
+    }
+    .worker-row {
+      display: grid;
+      grid-template-columns: 24px 1fr 100px 1fr 60px;
+      gap: 12px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      align-items: center;
+      font-size: 12px;
+    }
+    .worker-row:last-child { border-bottom: 0; }
+    .worker-row .w-avatar {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 9px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .worker-row .w-name { font-weight: 500; }
+    .worker-row .w-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .worker-row .w-status .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+    }
+    .worker-row.busy .dot { background: var(--accent); }
+    .worker-row.idle .dot { background: var(--text-tertiary); }
+    .worker-row.busy .w-status { color: var(--accent); }
+    .worker-row.idle .w-status { color: var(--text-tertiary); }
+    .worker-row .w-job {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+    .worker-row .w-queue {
+      font-family: var(--font-mono);
+      text-align: right;
+      color: var(--text-tertiary);
+    }
+
+    /* =========================================================
+       Misc
+       ========================================================= */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-strong);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::selection { background: var(--accent-bg); color: var(--accent); }
+  </style>
+</head>
+<body>
+
+  <!-- ============================ Topbar ============================ -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-logo">W</div>
+      <span>WikiMind</span>
+      <span class="badge accent" style="margin-left: 6px; font-size: 10px;">v0.1.0</span>
+    </div>
+    <button class="vault-switcher" title="切换 vault">
+      <span>📚</span>
+      <span class="vault-name">karpathy-vault</span>
+      <span>▾</span>
+    </button>
+    <div class="search-box">
+      <span>⌕</span>
+      <span>search wiki, claims, sources…</span>
+      <kbd>⌘K</kbd>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="agent-pill">
+      <span class="dot"></span>
+      <span>4 agents online</span>
+    </div>
+    <button class="icon-btn" title="通知">🔔</button>
+    <button class="icon-btn" title="设置">⛯</button>
+  </header>
+
+  <!-- ============================ Sidebar ============================ -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Workspace</div>
+      <a class="nav-item active" data-scene="dashboard">
+        <span class="nav-icon">◇</span>
+        <span class="nav-text">Dashboard</span>
+      </a>
+      <a class="nav-item" data-scene="review">
+        <span class="nav-icon">⚖</span>
+        <span class="nav-text">Review Queue</span>
+        <span class="nav-badge warn">12</span>
+      </a>
+      <a class="nav-item" data-scene="wiki">
+        <span class="nav-icon">📖</span>
+        <span class="nav-text">Wiki</span>
+        <span class="nav-badge">347</span>
+      </a>
+      <a class="nav-item" data-scene="ingest">
+        <span class="nav-icon">⚡</span>
+        <span class="nav-text">Ingest</span>
+        <span class="nav-badge">3</span>
+      </a>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Knowledge</div>
+      <a class="nav-item disabled" title="v0.2">
+        <span class="nav-icon">◈</span>
+        <span class="nav-text">Claims</span>
+        <span class="nav-badge">186</span>
+      </a>
+      <a class="nav-item disabled" title="v0.2">
+        <span class="nav-icon">◉</span>
+        <span class="nav-text">Entities</span>
+        <span class="nav-badge">42</span>
+      </a>
+      <a class="nav-item disabled" title="v0.2">
+        <span class="nav-icon">◎</span>
+        <span class="nav-text">Concepts</span>
+        <span class="nav-badge">28</span>
+      </a>
+      <a class="nav-item disabled" title="v0.2">
+        <span class="nav-icon">⛬</span>
+        <span class="nav-text">Sources</span>
+        <span class="nav-badge">91</span>
+      </a>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">System</div>
+      <a class="nav-item disabled" title="v0.2">
+        <span class="nav-icon">🤖</span>
+        <span class="nav-text">Agents</span>
+      </a>
+      <a class="nav-item disabled" title="v0.2">
+        <span class="nav-icon">⌬</span>
+        <span class="nav-text">Lint Rules</span>
+      </a>
+      <a class="nav-item disabled" title="v0.2">
+        <span class="nav-icon">⏱</span>
+        <span class="nav-text">Dream Cycle</span>
+      </a>
+      <a class="nav-item disabled" title="v0.2">
+        <span class="nav-icon">⌥</span>
+        <span class="nav-text">Settings</span>
+      </a>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="vault-info-card">
+        <div class="vault-info-title">
+          <span class="health-score-wrap">
+            <span class="health-score"></span>
+            <span class="num">87</span>
+          </span>
+          <span>Vault Health</span>
+        </div>
+        <div>347 pages · 186 claims</div>
+        <div style="color: var(--text-tertiary); font-size: 11px; margin-top: 4px;">
+          last sync: 2 min ago
+        </div>
+      </div>
+      <button class="theme-toggle" id="themeToggle">
+        <span id="themeIcon">☾</span>
+        <span id="themeLabel">Dark</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ============================ Main ============================ -->
+  <main class="main">
+
+    <!-- ====================================================================
+         Scene 1: Dashboard
+         ==================================================================== -->
+    <section class="scene active" id="dashboard">
+      <div class="page-header">
+        <div class="page-header-row">
+          <div>
+            <h1>Dashboard</h1>
+            <div class="subtitle">karpathy-vault · 最近 14 天活动</div>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn">
+              <span>⟳</span>
+              <span>Refresh</span>
+            </button>
+            <button class="btn btn-primary">
+              <span>+</span>
+              <span>Ingest file</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Metric cards -->
+      <div class="metric-grid">
+        <div class="metric-card">
+          <div class="metric-label">⚖ Pending Reviews</div>
+          <div class="metric-value">
+            12
+            <span class="delta up">+4 today</span>
+          </div>
+          <div class="metric-sub">
+            <span class="badge error">3 critical</span>
+            <span class="badge">7 normal</span>
+            <span class="badge">2 low</span>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-label">⌬ Lint Warnings</div>
+          <div class="metric-value">
+            7
+            <span class="delta down">-2 today</span>
+          </div>
+          <div class="metric-sub">
+            <span class="badge warn">4 broken_link</span>
+            <span class="badge warn">2 stale</span>
+            <span class="badge warn">1 unverified</span>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-label">⏱ Dream Cycle</div>
+          <div class="metric-value" style="font-size: 18px;">
+            ✓ Healthy
+          </div>
+          <div class="metric-sub">
+            <span style="font-size: 11px; color: var(--text-tertiary);">
+              last: 2026-05-20 22:00 · next: 今晚 22:00
+            </span>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-label">🤖 Agent Activity</div>
+          <div class="metric-value">
+            4
+            <span class="delta" style="color: var(--text-tertiary);">active now</span>
+          </div>
+          <div class="metric-sub">
+            <span class="agent-badge agent-claude"><span class="agent-avatar">C</span>claude</span>
+            <span class="agent-badge agent-codex"><span class="agent-avatar">X</span>codex</span>
+            <span class="agent-badge agent-hermes"><span class="agent-avatar">H</span>hermes</span>
+            <span class="agent-badge agent-cursor"><span class="agent-avatar">U</span>cursor</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts + Sidebar -->
+      <div class="dash-grid">
+        <div class="card chart-card">
+          <div class="chart-title">
+            <h3>Activity Timeline</h3>
+            <div class="chart-legend">
+              <span><span class="dot" style="background: var(--accent);"></span>commits</span>
+              <span><span class="dot" style="background: var(--purple);"></span>claims added</span>
+              <span><span class="dot" style="background: var(--warn);"></span>lint warnings</span>
+            </div>
+          </div>
+          <svg class="chart-svg" viewBox="0 0 600 180" preserveAspectRatio="none">
+            <!-- Grid lines -->
+            <g stroke="currentColor" stroke-opacity="0.06" stroke-width="1">
+              <line x1="0" y1="30" x2="600" y2="30"/>
+              <line x1="0" y1="75" x2="600" y2="75"/>
+              <line x1="0" y1="120" x2="600" y2="120"/>
+              <line x1="0" y1="165" x2="600" y2="165"/>
+            </g>
+            <!-- X-axis days (14 days) -->
+            <g font-size="9" fill="currentColor" fill-opacity="0.4" text-anchor="middle" font-family="ui-monospace, monospace">
+              <text x="21"  y="178">5/8</text>
+              <text x="105" y="178">5/10</text>
+              <text x="189" y="178">5/12</text>
+              <text x="273" y="178">5/14</text>
+              <text x="357" y="178">5/16</text>
+              <text x="441" y="178">5/18</text>
+              <text x="525" y="178">5/20</text>
+            </g>
+            <!-- Commits area -->
+            <path d="M 21,150 L 63,140 L 105,120 L 147,135 L 189,90 L 231,105 L 273,80 L 315,95 L 357,60 L 399,70 L 441,55 L 483,45 L 525,30 L 567,40 L 567,165 L 21,165 Z"
+                  fill="#2563eb" fill-opacity="0.10"/>
+            <path d="M 21,150 L 63,140 L 105,120 L 147,135 L 189,90 L 231,105 L 273,80 L 315,95 L 357,60 L 399,70 L 441,55 L 483,45 L 525,30 L 567,40"
+                  fill="none" stroke="#2563eb" stroke-width="1.5"/>
+            <!-- Claims line -->
+            <path d="M 21,158 L 63,152 L 105,140 L 147,150 L 189,120 L 231,128 L 273,110 L 315,118 L 357,90 L 399,95 L 441,82 L 483,72 L 525,60 L 567,70"
+                  fill="none" stroke="#9333ea" stroke-width="1.5" stroke-dasharray="3,3"/>
+            <!-- Lint bars (subtle) -->
+            <g fill="#d97706" fill-opacity="0.5">
+              <rect x="17" y="160" width="8" height="5"/>
+              <rect x="59" y="158" width="8" height="7"/>
+              <rect x="101" y="155" width="8" height="10"/>
+              <rect x="143" y="160" width="8" height="5"/>
+              <rect x="185" y="150" width="8" height="15"/>
+              <rect x="227" y="155" width="8" height="10"/>
+              <rect x="269" y="152" width="8" height="13"/>
+              <rect x="311" y="160" width="8" height="5"/>
+              <rect x="353" y="150" width="8" height="15"/>
+              <rect x="395" y="155" width="8" height="10"/>
+              <rect x="437" y="160" width="8" height="5"/>
+              <rect x="479" y="158" width="8" height="7"/>
+              <rect x="521" y="155" width="8" height="10"/>
+              <rect x="563" y="160" width="8" height="5"/>
+            </g>
+            <!-- Markers -->
+            <g fill="#2563eb">
+              <circle cx="525" cy="30" r="3"/>
+              <circle cx="441" cy="55" r="3"/>
+            </g>
+          </svg>
+          <div style="display: flex; justify-content: space-between; padding-top: 8px; font-size: 11px; color: var(--text-tertiary);">
+            <span>共 87 commits · +42 claims · 7 warnings</span>
+            <span class="mono">peak: 5/20 (13 commits)</span>
+          </div>
+        </div>
+
+        <div class="card health-card">
+          <div class="health-big">
+            <div class="health-ring"><div class="score">87</div></div>
+            <div class="health-meta">
+              <strong>Vault Health</strong>
+              <span>87 / 100 — Good</span>
+              <span style="display: block; margin-top: 2px;">↑ 4 since last week</span>
+            </div>
+          </div>
+
+          <div class="tip-list">
+            <div class="tip">
+              <div class="tip-icon warn">⚖</div>
+              <div class="tip-body">
+                <div class="tip-title">Review backlog 偏高</div>
+                <div class="tip-desc">12 pending, 建议清理 critical bundle</div>
+              </div>
+              <span class="tip-action">Review →</span>
+            </div>
+            <div class="tip">
+              <div class="tip-icon info">⏱</div>
+              <div class="tip-body">
+                <div class="tip-title">Dream Cycle 待运行</div>
+                <div class="tip-desc">最后一次 19 小时前；建议每 24h 一次</div>
+              </div>
+              <span class="tip-action">Run now →</span>
+            </div>
+            <div class="tip">
+              <div class="tip-icon error">⚠</div>
+              <div class="tip-body">
+                <div class="tip-title">1 个 DRIFT claim</div>
+                <div class="tip-desc">
+                  <span class="mono">karpathy-llm-wiki.md#section-3</span> 已变更
+                </div>
+              </div>
+              <span class="tip-action">Re-verify →</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Activity Feed -->
+      <div class="card" style="margin-top: 12px;">
+        <div class="card-header">
+          <h3>Recent Activity</h3>
+          <span class="card-meta">最近 10 条</span>
+        </div>
+        <ul class="activity-feed">
+          <li class="activity-item">
+            <div class="activity-avatar" style="background: #d97706;">C</div>
+            <div class="activity-body">
+              <span class="who">claude-code</span>
+              <span class="what"> proposed claim </span>
+              <span class="where">claims/wiki-is-compounding.md</span>
+              <span class="what"> in bundle </span>
+              <span class="mono" style="color: var(--text-tertiary);">b-0042</span>
+            </div>
+            <div class="activity-time">2 min ago</div>
+          </li>
+          <li class="activity-item">
+            <div class="activity-avatar" style="background: #52525b;">U</div>
+            <div class="activity-body">
+              <span class="who">you</span>
+              <span class="what"> accepted </span>
+              <span class="mono" style="color: var(--text-tertiary);">r-0241</span>
+              <span class="what">, </span>
+              <span class="mono" style="color: var(--text-tertiary);">r-0242</span>
+              <span class="what"> → merged to </span>
+              <span class="where">entities/karpathy.md</span>
+            </div>
+            <div class="activity-time">8 min ago</div>
+          </li>
+          <li class="activity-item">
+            <div class="activity-avatar" style="background: #16a34a;">X</div>
+            <div class="activity-body">
+              <span class="who">codex-cli</span>
+              <span class="what"> ran lint, found </span>
+              <strong style="color: var(--warn);">2 broken links</strong>
+              <span class="what"> in </span>
+              <span class="where">concepts/</span>
+            </div>
+            <div class="activity-time">14 min ago</div>
+          </li>
+          <li class="activity-item">
+            <div class="activity-avatar" style="background: #9333ea;">H</div>
+            <div class="activity-body">
+              <span class="who">hermes</span>
+              <span class="what"> ingested </span>
+              <span class="where">raw/inbox/mindstudio-blog.html</span>
+              <span class="what"> → </span>
+              <strong>5 claims, 2 entities</strong>
+              <span class="what"> proposed</span>
+            </div>
+            <div class="activity-time">23 min ago</div>
+          </li>
+          <li class="activity-item">
+            <div class="activity-avatar" style="background: #52525b;">U</div>
+            <div class="activity-body">
+              <span class="who">you</span>
+              <span class="what"> rejected </span>
+              <span class="mono" style="color: var(--text-tertiary);">r-0238</span>
+              <span class="what"> · </span>
+              <em style="color: var(--text-tertiary);">"quote_hash mismatch, source has changed"</em>
+            </div>
+            <div class="activity-time">31 min ago</div>
+          </li>
+          <li class="activity-item">
+            <div class="activity-avatar" style="background: #0ea5e9;">U</div>
+            <div class="activity-body">
+              <span class="who">cursor</span>
+              <span class="what"> queried wiki — </span>
+              <em>"What is the difference between RAG and LLM Wiki?"</em>
+              <span class="what"> → answer sedimented as draft</span>
+            </div>
+            <div class="activity-time">45 min ago</div>
+          </li>
+          <li class="activity-item">
+            <div class="activity-avatar" style="background: #16a34a;">⟳</div>
+            <div class="activity-body">
+              <span class="who">daemon</span>
+              <span class="what"> ran </span>
+              <strong>Dream Cycle</strong>
+              <span class="what"> · consolidated 3 duplicate concepts, evolved 1 cluster</span>
+            </div>
+            <div class="activity-time">19h ago</div>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         Scene 2: Review Queue
+         ==================================================================== -->
+    <section class="scene" id="review">
+      <div class="page-header">
+        <div class="page-header-row">
+          <div>
+            <h1>Review Queue</h1>
+            <div class="subtitle">
+              12 pending proposals · 3 bundles
+              <span style="margin-left: 8px;" class="badge warn">queue load: 24%</span>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-ghost">
+              <span>⌬</span>
+              <span>Auto-accept policy…</span>
+            </button>
+            <button class="btn">Reject all stale</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filter bar -->
+      <div class="filter-bar">
+        <div class="filter-group">
+          <span class="filter-label">Agent</span>
+          <button class="chip active">All</button>
+          <button class="chip agent-claude">
+            <span class="agent-avatar" style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #d97706; vertical-align: middle; margin-right: 3px;"></span>
+            claude (7)
+          </button>
+          <button class="chip">codex (3)</button>
+          <button class="chip">hermes (2)</button>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Type</span>
+          <button class="chip">claim (8)</button>
+          <button class="chip">entity (2)</button>
+          <button class="chip">concept (1)</button>
+          <button class="chip">source (1)</button>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Priority</span>
+          <button class="chip solid-warn">Critical (3)</button>
+          <button class="chip">Normal (7)</button>
+          <button class="chip">Low (2)</button>
+        </div>
+        <div style="flex: 1;"></div>
+        <button class="btn btn-sm btn-ghost">Sort: newest ▾</button>
+      </div>
+
+      <div class="review-layout">
+
+        <!-- Left: bundle groups -->
+        <div>
+          <!-- Bundle 1 (expanded, with selected card) -->
+          <div class="bundle-group">
+            <div class="bundle-header">
+              <span style="color: var(--text-tertiary);">▼</span>
+              <div class="bundle-title">📦 Ingest: Karpathy LLM Wiki gist</div>
+              <span class="bundle-meta">b-0042 · 5 proposes</span>
+              <span class="bundle-spacer"></span>
+              <span class="badge error">critical</span>
+              <span class="agent-badge agent-claude"><span class="agent-avatar">C</span>claude</span>
+              <button class="btn btn-sm btn-primary">Accept bundle</button>
+            </div>
+
+            <!-- Propose 1 — selected -->
+            <div class="propose-card selected">
+              <div class="propose-head">
+                <span class="badge purple">claim</span>
+                <span class="propose-path"><span class="path-prefix">wiki/claims/</span>wiki-is-compounding.md</span>
+                <span class="propose-id">r-0245</span>
+                <span class="propose-spacer"></span>
+                <span class="propose-time">2 min ago</span>
+              </div>
+
+              <div class="diff-block">
+                <div class="diff-line add">
+                  <span class="line-num">1</span><span class="sign">+</span>
+                  <span class="content">---</span>
+                </div>
+                <div class="diff-line add">
+                  <span class="line-num">2</span><span class="sign">+</span>
+                  <span class="content">id: cl-2026-05-21-001</span>
+                </div>
+                <div class="diff-line add">
+                  <span class="line-num">3</span><span class="sign">+</span>
+                  <span class="content">type: claim</span>
+                </div>
+                <div class="diff-line add">
+                  <span class="line-num">4</span><span class="sign">+</span>
+                  <span class="content">status: unverified</span>
+                </div>
+                <div class="diff-line add">
+                  <span class="line-num">5</span><span class="sign">+</span>
+                  <span class="content">confidence: 0.85</span>
+                </div>
+                <div class="diff-line add">
+                  <span class="line-num">6</span><span class="sign">+</span>
+                  <span class="content">sources:</span>
+                </div>
+                <div class="diff-collapsed">+ 18 more lines · click to expand</div>
+              </div>
+
+              <div class="propose-meta">
+                <span class="meta-item">
+                  conf <strong>0.85</strong>
+                </span>
+                <span class="meta-item">
+                  sources <strong>2</strong>
+                </span>
+                <span class="meta-item">
+                  quote_hash <code>a7f2e3c1</code>
+                </span>
+                <span class="meta-item">
+                  schema <code>v1.0</code>
+                </span>
+                <span class="meta-item" style="color: var(--success);">
+                  ✓ quote 校验通过
+                </span>
+              </div>
+
+              <div class="propose-actions">
+                <button class="btn btn-ghost btn-sm">Show full diff</button>
+                <button class="btn btn-sm">Bundle</button>
+                <button class="btn btn-danger btn-sm">Reject</button>
+                <button class="btn btn-primary btn-sm">Accept</button>
+              </div>
+            </div>
+
+            <!-- Propose 2 -->
+            <div class="propose-card">
+              <div class="propose-head">
+                <span class="badge accent">entity</span>
+                <span class="propose-path"><span class="path-prefix">wiki/entities/</span>karpathy.md</span>
+                <span class="propose-id">r-0246</span>
+                <span class="propose-spacer"></span>
+                <span class="propose-time">2 min ago</span>
+              </div>
+
+              <div class="diff-block">
+                <div class="diff-line del">
+                  <span class="line-num">12</span><span class="sign">-</span>
+                  <span class="content">aliases: ["Andrej Karpathy"]</span>
+                </div>
+                <div class="diff-line add">
+                  <span class="line-num">12</span><span class="sign">+</span>
+                  <span class="content">aliases: ["Andrej Karpathy", "@karpathy"]</span>
+                </div>
+                <div class="diff-line add">
+                  <span class="line-num">13</span><span class="sign">+</span>
+                  <span class="content">related: [[cl-2026-05-21-001]]</span>
+                </div>
+              </div>
+
+              <div class="propose-meta">
+                <span class="meta-item">conf <strong>0.95</strong></span>
+                <span class="meta-item">type <strong>edit</strong></span>
+                <span class="meta-item" style="color: var(--success);">✓ base_hash matches</span>
+              </div>
+
+              <div class="propose-actions">
+                <button class="btn btn-ghost btn-sm">Show full diff</button>
+                <button class="btn btn-danger btn-sm">Reject</button>
+                <button class="btn btn-primary btn-sm">Accept</button>
+              </div>
+            </div>
+
+            <!-- Propose 3 -->
+            <div class="propose-card">
+              <div class="propose-head">
+                <span class="badge purple">claim</span>
+                <span class="propose-path"><span class="path-prefix">wiki/claims/</span>index-md-read-first.md</span>
+                <span class="propose-id">r-0247</span>
+                <span class="propose-spacer"></span>
+                <span class="propose-time">2 min ago</span>
+                <span class="badge warn" title="agent 自标低信心">low confidence</span>
+              </div>
+
+              <div class="diff-block">
+                <div class="diff-line add">
+                  <span class="line-num">1</span><span class="sign">+</span>
+                  <span class="content">## Karpathy 主张 index.md 必须先于正文被读取</span>
+                </div>
+                <div class="diff-line add">
+                  <span class="line-num">2</span><span class="sign">+</span>
+                  <span class="content"></span>
+                </div>
+                <div class="diff-line add">
+                  <span class="line-num">3</span><span class="sign">+</span>
+                  <span class="content">这是 wiki 维护的硬约束之一。</span>
+                </div>
+              </div>
+
+              <div class="propose-meta">
+                <span class="meta-item">conf <strong style="color: var(--warn);">0.55</strong></span>
+                <span class="meta-item">sources <strong>1</strong></span>
+                <span class="meta-item">quote_hash <code>3f8b91a0</code></span>
+                <span class="meta-item" style="color: var(--warn);">⚠ 推断陈述，建议人工核查</span>
+              </div>
+
+              <div class="propose-actions">
+                <button class="btn btn-ghost btn-sm">View source</button>
+                <button class="btn btn-danger btn-sm">Reject</button>
+                <button class="btn btn-primary btn-sm">Accept</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bundle 2 (collapsed) -->
+          <div class="bundle-group">
+            <div class="bundle-header">
+              <span style="color: var(--text-tertiary);">▶</span>
+              <div class="bundle-title">⌬ Lint fix: broken links in concepts/</div>
+              <span class="bundle-meta">b-0041 · 4 proposes</span>
+              <span class="bundle-spacer"></span>
+              <span class="badge">normal</span>
+              <span class="agent-badge agent-codex"><span class="agent-avatar">X</span>codex</span>
+              <button class="btn btn-sm">Inspect</button>
+            </div>
+          </div>
+
+          <!-- Bundle 3 (collapsed) -->
+          <div class="bundle-group">
+            <div class="bundle-header">
+              <span style="color: var(--text-tertiary);">▶</span>
+              <div class="bundle-title">📥 Query sediment: "RAG vs LLM Wiki"</div>
+              <span class="bundle-meta">b-0040 · 2 proposes</span>
+              <span class="bundle-spacer"></span>
+              <span class="badge">low</span>
+              <span class="agent-badge agent-cursor"><span class="agent-avatar">U</span>cursor</span>
+              <button class="btn btn-sm">Inspect</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: inspector for selected bundle -->
+        <aside class="inspector">
+          <h3>Bundle Inspector</h3>
+
+          <div class="inspector-section">
+            <div class="sec-label">Bundle</div>
+            <div style="font-family: var(--font-mono); font-size: 12px; margin-bottom: 4px;">
+              b-0042
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary);">
+              Ingest: Karpathy LLM Wiki gist
+            </div>
+            <div style="font-size: 11px; color: var(--text-tertiary); margin-top: 4px;">
+              created by <span class="agent-badge agent-claude" style="font-size: 10px;"><span class="agent-avatar">C</span>claude</span>
+              · 2 min ago
+            </div>
+          </div>
+
+          <div class="inspector-section">
+            <div class="sec-label">Dependency Graph</div>
+            <div class="dep-graph">
+              <div class="dep-node root">r-0245 (claim)</div>
+              <div class="dep-arrow">↳ refers to ↓</div>
+              <div class="dep-node">r-0246 (entity)</div>
+              <div class="dep-arrow">↳ source-anchor in</div>
+              <div class="dep-node">r-0249 (source)</div>
+              <div class="dep-arrow" style="opacity: 0.5;">···</div>
+            </div>
+          </div>
+
+          <div class="inspector-section">
+            <div class="sec-label">Impact analysis</div>
+            <ul class="impact-list">
+              <li><span class="impact-num">+3</span> new wiki pages</li>
+              <li><span class="impact-num">~2</span> pages modified</li>
+              <li><span class="impact-num">+5</span> new backlinks</li>
+              <li><span class="impact-num">0</span> conflicts with existing claims</li>
+              <li style="color: var(--success);">
+                <span class="impact-num" style="color: var(--success);">✓</span>
+                all sources verified
+              </li>
+            </ul>
+          </div>
+
+          <div class="inspector-section">
+            <div class="sec-label">Source</div>
+            <div style="font-family: var(--font-mono); font-size: 12px; color: var(--accent);">
+              raw/inbox/karpathy-llm-wiki.md
+            </div>
+            <div style="font-size: 11px; color: var(--text-tertiary); margin-top: 2px;">
+              sha256: <span class="mono">7f3a91e4…</span>
+              <br>ingested: 5 min ago
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 8px; margin-top: 16px;">
+            <button class="btn" style="flex: 1;">Reject all</button>
+            <button class="btn btn-primary" style="flex: 1;">Accept all</button>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         Scene 3: Wiki
+         ==================================================================== -->
+    <section class="scene" id="wiki">
+      <div class="wiki-layout">
+
+        <!-- File tree -->
+        <aside class="wiki-tree">
+          <div class="tree-section">Vault</div>
+          <div class="tree-item dir"><span class="tree-icon">▾</span>raw/</div>
+          <div class="tree-children">
+            <div class="tree-item source"><span class="tree-icon">📄</span>karpathy-llm-wiki.md</div>
+            <div class="tree-item source"><span class="tree-icon">📄</span>mindstudio-blog.html</div>
+          </div>
+          <div class="tree-item dir"><span class="tree-icon">▾</span>wiki/</div>
+          <div class="tree-children">
+            <div class="tree-item dir"><span class="tree-icon">▾</span>claims/</div>
+            <div class="tree-children">
+              <div class="tree-item claim active">
+                <span class="tree-icon">◈</span>wiki-is-compounding
+              </div>
+              <div class="tree-item claim">
+                <span class="tree-icon">◈</span>index-md-read-first
+              </div>
+              <div class="tree-item claim">
+                <span class="tree-icon">◈</span>claims-are-citizens
+              </div>
+              <div class="tree-item claim">
+                <span class="tree-icon">◈</span>log-md-append-only
+              </div>
+            </div>
+            <div class="tree-item dir"><span class="tree-icon">▾</span>entities/</div>
+            <div class="tree-children">
+              <div class="tree-item entity">
+                <span class="tree-icon">◉</span>karpathy
+              </div>
+              <div class="tree-item entity">
+                <span class="tree-icon">◉</span>llm-wiki
+              </div>
+              <div class="tree-item entity">
+                <span class="tree-icon">◉</span>rag
+              </div>
+            </div>
+            <div class="tree-item dir"><span class="tree-icon">▾</span>concepts/</div>
+            <div class="tree-children">
+              <div class="tree-item concept">
+                <span class="tree-icon">◎</span>compounding-artifact
+              </div>
+              <div class="tree-item concept">
+                <span class="tree-icon">◎</span>source-of-truth
+              </div>
+            </div>
+            <div class="tree-item"><span class="tree-icon">📄</span>index.md</div>
+            <div class="tree-item"><span class="tree-icon">📄</span>log.md</div>
+          </div>
+          <div class="tree-item dir"><span class="tree-icon">▾</span>schema/</div>
+          <div class="tree-children">
+            <div class="tree-item"><span class="tree-icon">📄</span>AGENTS.md</div>
+            <div class="tree-item"><span class="tree-icon">📄</span>CLAUDE.md</div>
+          </div>
+        </aside>
+
+        <!-- Main content -->
+        <article class="wiki-content">
+          <div class="wiki-breadcrumb">
+            <span>wiki</span><span class="sep">/</span>
+            <span>claims</span><span class="sep">/</span>
+            <span style="color: var(--purple);">wiki-is-compounding.md</span>
+          </div>
+
+          <div class="wiki-title-row">
+            <h1>Wiki 是一个 compounding artifact</h1>
+            <span class="badge purple">◈ claim</span>
+            <span class="badge success">✓ supported</span>
+            <span class="badge">conf 0.92</span>
+          </div>
+
+          <details class="wiki-frontmatter" open>
+            <summary>frontmatter</summary>
+            <div class="frontmatter-body">
+              <div class="frontmatter-line"><span class="k">id</span><span class="v">cl-2026-05-21-001</span></div>
+              <div class="frontmatter-line"><span class="k">type</span><span class="v">claim</span></div>
+              <div class="frontmatter-line"><span class="k">status</span><span class="v">supported</span></div>
+              <div class="frontmatter-line"><span class="k">confidence</span><span class="v">0.92</span></div>
+              <div class="frontmatter-line"><span class="k">schema_version</span><span class="v">1.0</span></div>
+              <div class="frontmatter-line"><span class="k">created_by</span><span class="v">claude-code @ 2026-05-21 10:14</span></div>
+              <div class="frontmatter-line"><span class="k">updated_by</span><span class="v">you @ 2026-05-21 10:18 (accepted r-0245)</span></div>
+              <div class="frontmatter-line"><span class="k">last_verified</span><span class="v">2026-05-21 10:18</span></div>
+              <div class="frontmatter-line"><span class="k">related</span><span class="v">[[karpathy]] [[llm-wiki]] [[compounding-artifact]]</span></div>
+              <div class="frontmatter-line"><span class="k">aliases</span><span class="v">["compounding wiki", "knowledge as artifact"]</span></div>
+            </div>
+          </details>
+
+          <div class="wiki-body">
+            <p>
+              <strong>Karpathy</strong> 在 LLM Wiki gist 中明确主张：wiki 是一个
+              <span class="wikilink concept">[[compounding-artifact]]</span>，
+              而不是临时缓存。其核心区别在于——每一次 ingest、每一次 query、每一次 lint，
+              都应该让 wiki 变得"更值钱"，而不是让高质量的对话答案消失在 chat history 里。
+            </p>
+            <p>
+              这与传统 <span class="wikilink">[[rag]]</span> 的"查询即丢失"模式形成鲜明对比。
+              在 RAG 中，每次检索都是无状态的，知识不会被沉淀；而在 LLM Wiki 中，
+              每个高质量 query 的答案可以回写为 <span class="wikilink claim">[[claims-are-citizens|新的 claim 页]]</span>，
+              从而让系统"越用越值钱"。
+            </p>
+          </div>
+
+          <div class="wiki-section-title">
+            ⛬ Sources <span class="count">2</span>
+          </div>
+
+          <div class="source-card">
+            <div class="source-head">
+              <span class="source-path">raw/inbox/karpathy-llm-wiki.md</span>
+              <span class="source-anchor">#section-1-philosophy</span>
+              <span class="badge success">✓ verified</span>
+            </div>
+            <blockquote class="source-quote">
+              "every ingest, every query, every lint should make the wiki more valuable —
+              we should not let high-quality conversational answers disappear into the chat history."
+            </blockquote>
+            <div class="source-meta">
+              <span>quote_hash: <span class="meta-ok">a7f2e3c1</span></span>
+              <span>verified: 2 min ago</span>
+              <span>span: lines 14-19</span>
+            </div>
+          </div>
+
+          <div class="source-card">
+            <div class="source-head">
+              <span class="source-path">raw/inbox/mindstudio-blog.html</span>
+              <span class="source-anchor">#para-7</span>
+              <span class="badge warn">⚠ DRIFT detected</span>
+            </div>
+            <blockquote class="source-quote drift">
+              "The LLM Wiki pattern treats knowledge as a compounding artifact rather than ephemeral
+              context, which is the fundamental shift from RAG-based architectures."
+            </blockquote>
+            <div class="source-meta">
+              <span>quote_hash: <span class="meta-warn">e1b8…</span> ≠ stored <span class="meta-warn">d4f9…</span></span>
+              <span>source modified: 6h ago</span>
+              <button class="btn btn-sm btn-ghost" style="padding: 1px 6px;">Re-verify</button>
+            </div>
+          </div>
+
+          <div class="wiki-section-title">
+            ⌚ History <span class="count">3 commits</span>
+          </div>
+
+          <div class="history-list">
+            <div class="history-item">
+              <span class="history-sha">e4a7c92</span>
+              <span class="history-msg">accept r-0245: initial claim from karpathy gist ingest</span>
+              <span class="history-when">2 min ago · you</span>
+            </div>
+            <div class="history-item">
+              <span class="history-sha">b1f3008</span>
+              <span class="history-msg">refine wording, add concept link [[compounding-artifact]]</span>
+              <span class="history-when">8 min ago · claude-code</span>
+            </div>
+            <div class="history-item">
+              <span class="history-sha">a92d445</span>
+              <span class="history-msg">initial draft from raw/inbox/karpathy-llm-wiki.md</span>
+              <span class="history-when">14 min ago · claude-code</span>
+            </div>
+          </div>
+        </article>
+
+        <!-- Right sidebar -->
+        <aside class="wiki-side">
+          <div class="side-section">
+            <div class="side-label">Backlinks <span style="color: var(--text-secondary); font-weight: normal;">(3)</span></div>
+            <div class="backref-item">
+              <span class="br-icon" style="color: var(--accent);">◉</span>
+              entities/karpathy.md
+            </div>
+            <div class="backref-item">
+              <span class="br-icon" style="color: var(--success);">◎</span>
+              concepts/compounding-artifact.md
+            </div>
+            <div class="backref-item">
+              <span class="br-icon" style="color: var(--text);">📄</span>
+              index.md (top claims)
+            </div>
+          </div>
+
+          <div class="side-section">
+            <div class="side-label">Related</div>
+            <span class="related-tag" style="color: var(--accent);">◉ karpathy</span>
+            <span class="related-tag" style="color: var(--accent);">◉ llm-wiki</span>
+            <span class="related-tag" style="color: var(--success);">◎ compounding-artifact</span>
+            <span class="related-tag" style="color: var(--success);">◎ source-of-truth</span>
+            <span class="related-tag" style="color: var(--purple);">◈ index-md-read-first</span>
+          </div>
+
+          <div class="side-section">
+            <div class="side-label">Actions</div>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <button class="btn btn-sm" style="justify-content: flex-start;">
+                <span>⌚</span><span>View git history</span>
+              </button>
+              <button class="btn btn-sm" style="justify-content: flex-start;">
+                <span>⌬</span><span>Lint this page</span>
+              </button>
+              <button class="btn btn-sm" style="justify-content: flex-start;">
+                <span>⤴</span><span>Show in Obsidian</span>
+              </button>
+              <button class="btn btn-sm btn-danger" style="justify-content: flex-start;">
+                <span>⎌</span><span>Revert last commit</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="side-section">
+            <div class="side-label">Provenance</div>
+            <div style="font-size: 11px; color: var(--text-secondary); line-height: 1.6;">
+              <strong style="color: var(--text);">depth = 1</strong> ✓<br>
+              此 claim 直接挂在 raw/ 末端，未经过任何 wiki 内部引用链强化。
+              <span style="color: var(--success);">符合 anti-羊群效应规则</span>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         Scene 4: Ingest
+         ==================================================================== -->
+    <section class="scene" id="ingest">
+      <div class="page-header">
+        <div class="page-header-row">
+          <div>
+            <h1>Ingest</h1>
+            <div class="subtitle">3 active jobs · 12 in raw/inbox/ · daemon: <span style="color: var(--success);">● running</span></div>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn">
+              <span>📂</span>
+              <span>Open inbox</span>
+            </button>
+            <button class="btn btn-primary">
+              <span>+</span>
+              <span>Drop files…</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pipeline timeline -->
+      <div class="ingest-timeline">
+        <div class="stage done">
+          <div class="stage-num">stage 1</div>
+          <div class="stage-name">✓ Deliver</div>
+          <div class="stage-meta">2.1 MB · sha256 ok · 0.4s</div>
+        </div>
+        <div class="stage done">
+          <div class="stage-num">stage 2</div>
+          <div class="stage-name">✓ Parse</div>
+          <div class="stage-meta">3,847 tokens · 14 sections · 1.2s</div>
+        </div>
+        <div class="stage active">
+          <div class="stage-num">stage 3</div>
+          <div class="stage-name">
+            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: pulse 1.4s ease-in-out infinite;"></span>
+            Extract claims
+          </div>
+          <div class="stage-meta">claude-code · 4 / 8 extracted · 6.3s</div>
+        </div>
+        <div class="stage pending">
+          <div class="stage-num">stage 4</div>
+          <div class="stage-name">○ Propose</div>
+          <div class="stage-meta">waiting…</div>
+        </div>
+        <div class="stage pending">
+          <div class="stage-num">stage 5</div>
+          <div class="stage-name">○ Review queue</div>
+          <div class="stage-meta">waiting…</div>
+        </div>
+        <div class="stage-action">
+          <button class="btn btn-sm btn-ghost" title="Pause job">⏸</button>
+        </div>
+      </div>
+
+      <!-- File list + detail -->
+      <div class="ingest-grid">
+        <div class="card">
+          <div class="card-header">
+            <h3>raw/inbox/</h3>
+            <span class="card-meta">12 files</span>
+          </div>
+          <div class="file-list">
+            <div class="file-row">
+              <span class="file-icon">📄</span>
+              <span class="file-name">
+                mindstudio-blog.html
+                <span class="file-meta">142 KB · ✓ done · 23 min ago</span>
+              </span>
+              <span class="badge success">done</span>
+            </div>
+            <div class="file-row selected">
+              <span class="file-icon" style="color: var(--accent);">📄</span>
+              <span class="file-name" style="color: var(--accent);">
+                karpathy-llm-wiki.md
+                <span class="file-meta" style="color: var(--text-tertiary);">28 KB · extracting… · 6.3s</span>
+              </span>
+              <span class="badge accent">parsing</span>
+            </div>
+            <div class="file-row">
+              <span class="file-icon">📄</span>
+              <span class="file-name">
+                rag-vs-wiki-twitter-thread.md
+                <span class="file-meta">8 KB · queued · waiting</span>
+              </span>
+              <span class="badge">queued</span>
+            </div>
+            <div class="file-row">
+              <span class="file-icon">📕</span>
+              <span class="file-name">
+                attention-is-all-you-need.pdf
+                <span class="file-meta">1.4 MB · OCR failed · 12 min ago</span>
+              </span>
+              <span class="badge error">error</span>
+            </div>
+            <div class="file-row">
+              <span class="file-icon">🖼</span>
+              <span class="file-name">
+                architecture-diagram.png
+                <span class="file-meta">512 KB · OCR queued</span>
+              </span>
+              <span class="badge">queued</span>
+            </div>
+            <div class="file-row">
+              <span class="file-icon">🎙</span>
+              <span class="file-name">
+                podcast-karpathy-interview.mp3
+                <span class="file-meta">48 MB · transcribe queued</span>
+              </span>
+              <span class="badge">queued</span>
+            </div>
+            <div class="file-row">
+              <span class="file-icon">📄</span>
+              <span class="file-name">
+                claude-code-mcp-docs.md
+                <span class="file-meta">22 KB · ✓ done · 2h ago</span>
+              </span>
+              <span class="badge success">done</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card file-detail">
+          <div class="card-header">
+            <h3>karpathy-llm-wiki.md</h3>
+            <span class="card-meta">selected · live extraction</span>
+          </div>
+
+          <div class="detail-section">
+            <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-tertiary); margin-bottom: 8px; font-weight: 600;">
+              File metadata
+            </div>
+            <div class="detail-meta">
+              <span class="k">sha256</span><span class="v">7f3a91e4d8c2…</span>
+              <span class="k">size</span><span class="v">28,432 bytes</span>
+              <span class="k">mtime</span><span class="v">2026-05-21 10:08:42</span>
+              <span class="k">parser</span><span class="v">markdown / commonmark</span>
+              <span class="k">tokens</span><span class="v">3,847 (GPT-4 tok)</span>
+              <span class="k">sections</span><span class="v">14</span>
+            </div>
+          </div>
+
+          <div class="detail-section">
+            <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-tertiary); margin-bottom: 8px; font-weight: 600;">
+              Extracted claims <span style="text-transform: none; font-weight: 400; color: var(--text-secondary); letter-spacing: 0;">(4 of ~8, live)</span>
+            </div>
+
+            <div class="extracted-claim">
+              <div class="ec-head">
+                <span class="badge purple">◈ claim</span>
+                <span class="ec-id">cl-2026-05-21-001 → r-0245</span>
+                <span style="flex: 1;"></span>
+                <span style="color: var(--text-tertiary); font-size: 11px;">conf 0.85</span>
+              </div>
+              <div class="ec-text">
+                Wiki 是一个 compounding artifact，每次 ingest/query/lint 都让它更值钱。
+              </div>
+            </div>
+
+            <div class="extracted-claim">
+              <div class="ec-head">
+                <span class="badge purple">◈ claim</span>
+                <span class="ec-id">cl-2026-05-21-002 → r-0247</span>
+                <span style="flex: 1;"></span>
+                <span style="color: var(--warn); font-size: 11px;">conf 0.55</span>
+              </div>
+              <div class="ec-text">
+                index.md 必须先于正文页面被读取（agent 维护约束）。
+              </div>
+            </div>
+
+            <div class="extracted-claim">
+              <div class="ec-head">
+                <span class="badge accent">◉ entity</span>
+                <span class="ec-id">en-2026-05-21-001 → r-0246</span>
+                <span style="flex: 1;"></span>
+                <span style="color: var(--text-tertiary); font-size: 11px;">edit existing</span>
+              </div>
+              <div class="ec-text">
+                Andrej Karpathy — 补充 alias <code class="mono">@karpathy</code> 与新 claim 链接。
+              </div>
+            </div>
+
+            <div class="extracted-claim">
+              <div class="ec-head">
+                <span class="badge success">◎ concept</span>
+                <span class="ec-id">co-2026-05-21-001 → r-0248</span>
+                <span style="flex: 1;"></span>
+                <span style="color: var(--text-tertiary); font-size: 11px;">conf 0.90</span>
+              </div>
+              <div class="ec-text">
+                Compounding Artifact — 新概念页（对比 ephemeral cache）。
+              </div>
+            </div>
+
+            <div style="padding: 10px; text-align: center; color: var(--text-tertiary); font-size: 12px; border: 1px dashed var(--border); border-radius: var(--radius); margin-top: 8px;">
+              <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1.4s ease-in-out infinite; margin-right: 6px; vertical-align: middle;"></span>
+              extracting more… (estimated 4 remaining)
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Worker pool -->
+      <div class="card">
+        <div class="card-header">
+          <h3>Worker Pool</h3>
+          <span class="card-meta">4 agents · 1 busy · 3 idle</span>
+        </div>
+        <div class="worker-pool">
+          <div class="worker-row busy">
+            <div class="w-avatar" style="background: #d97706;">C</div>
+            <div class="w-name">claude-code</div>
+            <div class="w-status"><span class="dot"></span>busy</div>
+            <div class="w-job">extracting cl from karpathy-llm-wiki.md</div>
+            <div class="w-queue">queue: 0</div>
+          </div>
+          <div class="worker-row idle">
+            <div class="w-avatar" style="background: #16a34a;">X</div>
+            <div class="w-name">codex-cli</div>
+            <div class="w-status"><span class="dot"></span>idle</div>
+            <div class="w-job">last: lint concepts/ (14 min ago)</div>
+            <div class="w-queue">queue: 0</div>
+          </div>
+          <div class="worker-row idle">
+            <div class="w-avatar" style="background: #9333ea;">H</div>
+            <div class="w-name">hermes</div>
+            <div class="w-status"><span class="dot"></span>idle</div>
+            <div class="w-job">last: ingest mindstudio-blog.html (23 min ago)</div>
+            <div class="w-queue">queue: 1 (transcribe podcast)</div>
+          </div>
+          <div class="worker-row idle">
+            <div class="w-avatar" style="background: #0ea5e9;">U</div>
+            <div class="w-name">cursor</div>
+            <div class="w-status"><span class="dot"></span>idle</div>
+            <div class="w-job">last: wiki query (45 min ago)</div>
+            <div class="w-queue">queue: 0</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <style>
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+  </style>
+
+  <script>
+    // ===== Scene switching =====
+    const navItems = document.querySelectorAll('.nav-item[data-scene]');
+    const scenes = document.querySelectorAll('.scene');
+    navItems.forEach(item => {
+      item.addEventListener('click', e => {
+        e.preventDefault();
+        const target = item.dataset.scene;
+        scenes.forEach(s => s.classList.toggle('active', s.id === target));
+        navItems.forEach(n => n.classList.toggle('active', n === item));
+        document.querySelector('.main').scrollTop = 0;
+      });
+    });
+
+    // ===== Theme toggle =====
+    const themeToggle = document.getElementById('themeToggle');
+    const themeIcon = document.getElementById('themeIcon');
+    const themeLabel = document.getElementById('themeLabel');
+    themeToggle.addEventListener('click', () => {
+      const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = next;
+      themeIcon.textContent = next === 'dark' ? '☀' : '☾';
+      themeLabel.textContent = next === 'dark' ? 'Light' : 'Dark';
+    });
+
+    // ===== File row click in ingest scene =====
+    document.querySelectorAll('.file-row').forEach(row => {
+      row.addEventListener('click', () => {
+        document.querySelectorAll('.file-row').forEach(r => r.classList.remove('selected'));
+        row.classList.add('selected');
+      });
+    });
+
+    // ===== Tree item click in wiki scene =====
+    document.querySelectorAll('.wiki-tree .tree-item:not(.dir)').forEach(item => {
+      item.addEventListener('click', () => {
+        document.querySelectorAll('.wiki-tree .tree-item').forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+      });
+    });
+
+    // ===== Propose card click (review scene) =====
+    document.querySelectorAll('.propose-card').forEach(card => {
+      card.addEventListener('click', e => {
+        if (e.target.closest('button')) return;
+        document.querySelectorAll('.propose-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+      });
+    });
+
+    // ===== Diff collapsed expand =====
+    document.querySelectorAll('.diff-collapsed').forEach(el => {
+      el.addEventListener('click', () => {
+        el.textContent = '(展开仅作示意，原型未实现真实 diff 渲染)';
+        el.style.color = 'var(--text-tertiary)';
+        el.style.cursor = 'default';
+      });
+    });
+  </script>
+</body>
+</html>

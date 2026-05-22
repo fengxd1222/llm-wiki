@@ -1,0 +1,3182 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1440, initial-scale=1.0">
+  <title>WikiMind — LLM Wiki UI Prototype v2 (Geist refinement)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* =========================================================
+       Design Tokens — Vercel / Geist
+       ========================================================= */
+    :root {
+      /* Zinc grayscale */
+      --gray-0:  #ffffff;
+      --gray-50: #fafafa;
+      --gray-100:#f4f4f5;
+      --gray-150:#ededed;
+      --gray-200:#e4e4e7;
+      --gray-300:#d4d4d8;
+      --gray-400:#a1a1aa;
+      --gray-500:#71717a;
+      --gray-600:#52525b;
+      --gray-700:#3f3f46;
+      --gray-800:#27272a;
+      --gray-900:#18181b;
+      --gray-950:#0a0a0a;
+
+      --bg: var(--gray-0);
+      --bg-elevated: var(--gray-50);
+      --bg-hover: var(--gray-100);
+      --bg-subtle: var(--gray-50);
+
+      --border: var(--gray-150);
+      --border-strong: var(--gray-200);
+      --border-hover: var(--gray-300);
+
+      --text: var(--gray-900);
+      --text-secondary: var(--gray-600);
+      --text-tertiary: var(--gray-400);
+      --text-disabled: var(--gray-300);
+
+      /* Single accent */
+      --accent: #0070f3;
+      --accent-hover: #0060df;
+      --accent-soft: rgba(0, 112, 243, 0.10);
+      --accent-border: rgba(0, 112, 243, 0.25);
+
+      /* Primary action: solid black (Vercel signature) */
+      --primary: #000000;
+      --primary-hover: #1a1a1a;
+      --primary-fg: #ffffff;
+
+      /* Status — desaturated 600s */
+      --success: #16a34a;
+      --success-soft: #f5fbf7;
+      --success-border: #d4eddc;
+
+      --warn: #b45309;
+      --warn-soft: #fdfaf3;
+      --warn-border: #ecdcbf;
+
+      --error: #b91c1c;
+      --error-soft: #fdf6f6;
+      --error-border: #ecd0d0;
+
+      --info: #0369a1;
+      --info-soft: #f4faff;
+      --info-border: #cee3f1;
+
+      /* Semantic colors for page types — text-only */
+      --claim: #7c3aed;
+      --claim-soft: #faf5ff;
+      --entity: #2563eb;
+      --entity-soft: #f0f6ff;
+      --concept: #16a34a;
+      --concept-soft: #f0fdf4;
+
+      /* Diff — very subtle */
+      --diff-add: #f6fef9;
+      --diff-add-marker: #16a34a;
+      --diff-del: #fdf6f6;
+      --diff-del-marker: #b91c1c;
+
+      /* Spacing token grid (4-base) */
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+      --space-6: 24px;
+      --space-8: 32px;
+      --space-10: 40px;
+      --space-12: 48px;
+      --space-14: 56px;
+
+      --radius-1: 4px;
+      --radius-2: 6px;
+      --radius-3: 8px;
+      --radius-4: 12px;
+
+      --font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI",
+                   "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+
+      --transition-fast: 100ms ease;
+      --transition: 150ms ease;
+      --transition-slow: 200ms ease;
+    }
+
+    [data-theme="dark"] {
+      --gray-0:  #0a0a0a;
+      --gray-50: #0e0e10;
+      --gray-100:#131316;
+      --gray-150:#1c1c20;
+      --gray-200:#27272a;
+      --gray-300:#3f3f46;
+      --gray-400:#71717a;
+      --gray-500:#8b8b91;
+      --gray-600:#a1a1aa;
+      --gray-700:#d4d4d8;
+      --gray-800:#e4e4e7;
+      --gray-900:#fafafa;
+      --gray-950:#ffffff;
+
+      --bg: var(--gray-0);
+      --bg-elevated: var(--gray-50);
+      --bg-hover: var(--gray-100);
+      --bg-subtle: var(--gray-50);
+
+      --border: var(--gray-150);
+      --border-strong: var(--gray-200);
+      --border-hover: var(--gray-300);
+
+      --text: var(--gray-900);
+      --text-secondary: var(--gray-500);
+      --text-tertiary: var(--gray-400);
+      --text-disabled: var(--gray-300);
+
+      --accent: #3b82f6;
+      --accent-hover: #60a5fa;
+      --accent-soft: rgba(59, 130, 246, 0.15);
+      --accent-border: rgba(59, 130, 246, 0.35);
+
+      --primary: #ffffff;
+      --primary-hover: #e4e4e7;
+      --primary-fg: #000000;
+
+      --success: #22c55e;
+      --success-soft: rgba(34, 197, 94, 0.10);
+      --success-border: rgba(34, 197, 94, 0.30);
+      --warn: #f59e0b;
+      --warn-soft: rgba(245, 158, 11, 0.10);
+      --warn-border: rgba(245, 158, 11, 0.30);
+      --error: #ef4444;
+      --error-soft: rgba(239, 68, 68, 0.10);
+      --error-border: rgba(239, 68, 68, 0.30);
+      --info: #38bdf8;
+      --info-soft: rgba(56, 189, 248, 0.10);
+      --info-border: rgba(56, 189, 248, 0.30);
+
+      --claim: #a78bfa;
+      --claim-soft: rgba(167, 139, 250, 0.10);
+      --entity: #60a5fa;
+      --entity-soft: rgba(96, 165, 250, 0.10);
+      --concept: #4ade80;
+      --concept-soft: rgba(74, 222, 128, 0.10);
+
+      --diff-add: rgba(34, 197, 94, 0.08);
+      --diff-add-marker: #22c55e;
+      --diff-del: rgba(239, 68, 68, 0.08);
+      --diff-del-marker: #ef4444;
+    }
+
+    /* =========================================================
+       Reset
+       ========================================================= */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--text);
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      font-feature-settings: "cv11", "ss01", "ss03";
+    }
+    a { color: inherit; text-decoration: none; }
+    button {
+      font: inherit;
+      cursor: pointer;
+      border: none;
+      background: none;
+      color: inherit;
+      letter-spacing: inherit;
+    }
+    code, pre, .mono {
+      font-family: var(--font-mono);
+      font-size: 0.92em;
+      font-feature-settings: "ss01";
+    }
+    .num { font-variant-numeric: tabular-nums lining-nums; }
+    ul, ol { list-style: none; }
+    svg { display: block; }
+
+    /* =========================================================
+       Icon system
+       ========================================================= */
+    .icon {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      stroke-width: 1.5;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      flex-shrink: 0;
+    }
+    .icon-sm { width: 14px; height: 14px; }
+    .icon-lg { width: 18px; height: 18px; }
+    .icon-xl { width: 20px; height: 20px; }
+
+    /* =========================================================
+       Layout
+       ========================================================= */
+    body {
+      display: grid;
+      grid-template-rows: 52px 1fr;
+      grid-template-columns: 248px 1fr;
+      grid-template-areas:
+        "topbar topbar"
+        "sidebar main";
+      height: 100vh;
+      overflow: hidden;
+    }
+    .topbar { grid-area: topbar; }
+    .sidebar { grid-area: sidebar; }
+    .main { grid-area: main; overflow: auto; background: var(--bg); }
+
+    /* =========================================================
+       Topbar
+       ========================================================= */
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+      padding: 0 var(--space-5);
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-weight: 600;
+      font-size: 14px;
+      width: 228px;
+      letter-spacing: -0.005em;
+    }
+    .brand-logo {
+      width: 22px; height: 22px;
+      border-radius: 5px;
+      background: var(--primary);
+      display: grid;
+      place-items: center;
+      color: var(--primary-fg);
+      font-weight: 700;
+      font-size: 12px;
+      letter-spacing: -0.04em;
+    }
+    .brand-version {
+      margin-left: auto;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-tertiary);
+      font-weight: 400;
+      padding-right: 4px;
+    }
+    .vault-switcher {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: 5px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-2);
+      background: var(--bg);
+      font-size: 13px;
+      color: var(--text-secondary);
+      transition: background var(--transition-fast), border-color var(--transition-fast);
+    }
+    .vault-switcher:hover { background: var(--bg-hover); border-color: var(--border-strong); }
+    .vault-switcher .icon { color: var(--text-tertiary); }
+    .vault-switcher .vault-name { color: var(--text); font-weight: 500; }
+    .search-box {
+      flex: 1;
+      max-width: 480px;
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-2);
+      background: var(--bg);
+      color: var(--text-tertiary);
+      font-size: 13px;
+      transition: background var(--transition-fast), border-color var(--transition-fast);
+    }
+    .search-box:hover { border-color: var(--border-strong); }
+    .topbar-spacer { flex: 1; }
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px 4px 8px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      background: var(--bg);
+    }
+    .status-pill .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 15%, transparent);
+    }
+    .icon-btn {
+      width: 30px; height: 30px;
+      display: grid;
+      place-items: center;
+      border-radius: var(--radius-2);
+      color: var(--text-secondary);
+      transition: background var(--transition-fast), color var(--transition-fast);
+    }
+    .icon-btn:hover { background: var(--bg-hover); color: var(--text); }
+
+    .kbd {
+      display: inline-flex;
+      align-items: center;
+      padding: 1px 5px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--bg);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-tertiary);
+      font-weight: 500;
+      min-width: 20px;
+      justify-content: center;
+      line-height: 1.3;
+    }
+
+    /* =========================================================
+       Sidebar
+       ========================================================= */
+    .sidebar {
+      background: var(--bg-subtle);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: var(--space-3) var(--space-2) var(--space-3);
+      overflow-y: auto;
+    }
+    .sidebar-section { margin-bottom: var(--space-2); }
+    .sidebar-label {
+      padding: var(--space-2) 12px 6px;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      color: var(--text-tertiary);
+      font-weight: 500;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: var(--radius-2);
+      color: var(--text-secondary);
+      font-size: 13px;
+      cursor: pointer;
+      position: relative;
+      transition: background var(--transition-fast), color var(--transition-fast);
+    }
+    .nav-item:hover { background: var(--bg-hover); color: var(--text); }
+    .nav-item.active {
+      background: var(--bg-hover);
+      color: var(--text);
+      font-weight: 500;
+    }
+    .nav-item.active::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 2px;
+      height: 18px;
+      background: var(--primary);
+      border-radius: 0 2px 2px 0;
+    }
+    .nav-item.disabled {
+      color: var(--text-disabled);
+      cursor: not-allowed;
+    }
+    .nav-item.disabled:hover {
+      background: transparent;
+      color: var(--text-disabled);
+    }
+    .nav-item .nav-text { flex: 1; }
+    .nav-item .nav-badge {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+      padding: 0 6px;
+      color: var(--text-tertiary);
+    }
+    .nav-item .nav-badge.warn { color: var(--warn); font-weight: 500; }
+    .nav-item.disabled .nav-badge { color: var(--text-disabled); }
+
+    .sidebar-divider {
+      height: 1px;
+      background: var(--border);
+      margin: var(--space-3) 12px;
+    }
+    .sidebar-footer {
+      margin-top: auto;
+      padding: var(--space-2) 6px 0;
+    }
+    .vault-card {
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-3);
+      background: var(--bg);
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+    .vault-card-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .vault-card .vault-card-title {
+      color: var(--text);
+      font-weight: 500;
+      font-size: 12px;
+    }
+    .vault-card .vault-card-sub {
+      color: var(--text-tertiary);
+      font-size: 11px;
+      margin-top: 1px;
+    }
+    .vault-card-stats {
+      display: flex;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+      font-size: 11px;
+      color: var(--text-tertiary);
+    }
+    .vault-card-stats strong { color: var(--text); font-weight: 500; }
+
+    .ring {
+      position: relative;
+      width: 32px; height: 32px;
+      flex-shrink: 0;
+    }
+    .ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+    .ring .track { stroke: var(--border-strong); }
+    .ring .progress { stroke: var(--success); transition: stroke-dashoffset 1s ease; }
+    .ring .label {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .theme-toggle {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 7px 10px;
+      margin-top: var(--space-3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-2);
+      font-size: 12px;
+      color: var(--text-secondary);
+      background: var(--bg);
+      transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+    }
+    .theme-toggle:hover { background: var(--bg-hover); color: var(--text); border-color: var(--border-strong); }
+
+    /* =========================================================
+       Common Components
+       ========================================================= */
+    .scene {
+      display: none;
+      padding: var(--space-10) var(--space-14);
+      max-width: 1400px;
+      animation: fadein 200ms ease;
+    }
+    .scene.active { display: block; }
+    @keyframes fadein {
+      from { opacity: 0; transform: translateY(2px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .page-header { margin-bottom: var(--space-8); }
+    .page-header h1 {
+      font-size: 28px;
+      font-weight: 600;
+      letter-spacing: -0.025em;
+      line-height: 1.1;
+    }
+    .page-header .subtitle {
+      margin-top: 8px;
+      color: var(--text-secondary);
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .page-header-row {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: var(--space-5);
+    }
+
+    .card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-3);
+      transition: border-color var(--transition-fast);
+    }
+    .card-header {
+      padding: var(--space-4) var(--space-5);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 48px;
+    }
+    .card-header h3 {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: -0.005em;
+    }
+    .card-header .card-meta {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      font-variant-numeric: tabular-nums;
+    }
+    .card-body { padding: var(--space-5); }
+
+    /* Buttons — Vercel style */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      height: 32px;
+      border-radius: var(--radius-2);
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: -0.005em;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+      white-space: nowrap;
+    }
+    .btn:hover { background: var(--bg-hover); border-color: var(--border-strong); }
+    .btn .icon { color: var(--text-secondary); }
+    .btn-primary {
+      background: var(--primary);
+      color: var(--primary-fg);
+      border-color: var(--primary);
+    }
+    .btn-primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+    .btn-primary .icon { color: var(--primary-fg); }
+    .btn-danger {
+      color: var(--error);
+      border-color: var(--border);
+    }
+    .btn-danger:hover {
+      color: var(--error);
+      border-color: var(--error-border);
+      background: var(--error-soft);
+    }
+    .btn-ghost {
+      border-color: transparent;
+      color: var(--text-secondary);
+      background: transparent;
+    }
+    .btn-ghost:hover { color: var(--text); background: var(--bg-hover); border-color: transparent; }
+    .btn-sm { padding: 3px 10px; height: 26px; font-size: 12px; }
+    .btn-lg { padding: 10px 18px; height: 40px; font-size: 14px; }
+
+    /* Badges — minimal */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: var(--radius-2);
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 1.4;
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+    .badge .dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--text-tertiary);
+    }
+    .badge.success { color: var(--success); border-color: var(--success-border); background: var(--success-soft); }
+    .badge.success .dot { background: var(--success); }
+    .badge.warn { color: var(--warn); border-color: var(--warn-border); background: var(--warn-soft); }
+    .badge.warn .dot { background: var(--warn); }
+    .badge.error { color: var(--error); border-color: var(--error-border); background: var(--error-soft); }
+    .badge.error .dot { background: var(--error); }
+    .badge.info { color: var(--info); border-color: var(--info-border); background: var(--info-soft); }
+    .badge.info .dot { background: var(--info); }
+    .badge.accent { color: var(--accent); border-color: var(--accent-border); background: var(--accent-soft); }
+    .badge.accent .dot { background: var(--accent); }
+    .badge.claim { color: var(--claim); border-color: color-mix(in srgb, var(--claim) 25%, transparent); }
+    .badge.entity { color: var(--entity); border-color: color-mix(in srgb, var(--entity) 25%, transparent); }
+    .badge.concept { color: var(--concept); border-color: color-mix(in srgb, var(--concept) 25%, transparent); }
+
+    .agent-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 2px 10px 2px 3px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+    .agent-avatar {
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 600;
+      color: var(--gray-0);
+      letter-spacing: -0.04em;
+    }
+    [data-theme="light"] .agent-avatar { color: #fff; }
+    [data-theme="dark"] .agent-avatar { color: #fff; }
+    .av-claude { background: #b45309; }
+    .av-codex  { background: #15803d; }
+    .av-hermes { background: #6d28d9; }
+    .av-cursor { background: #0369a1; }
+    .av-user   { background: #3f3f46; }
+    [data-theme="dark"] .av-claude { background: #f59e0b; }
+    [data-theme="dark"] .av-codex  { background: #22c55e; }
+    [data-theme="dark"] .av-hermes { background: #a78bfa; }
+    [data-theme="dark"] .av-cursor { background: #38bdf8; }
+    [data-theme="dark"] .av-user   { background: #71717a; }
+
+    /* =========================================================
+       Scene: Dashboard
+       ========================================================= */
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-5);
+      margin-bottom: var(--space-6);
+    }
+    .metric-card {
+      padding: var(--space-5);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-3);
+      background: var(--bg);
+      transition: border-color var(--transition-fast);
+    }
+    .metric-card:hover { border-color: var(--border-strong); }
+    .metric-card .metric-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: var(--space-4);
+      letter-spacing: -0.005em;
+    }
+    .metric-card .metric-label .icon { color: var(--text-tertiary); }
+    .metric-card .metric-value {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      font-family: var(--font-mono);
+      font-size: 36px;
+      font-weight: 500;
+      line-height: 1;
+      letter-spacing: -0.04em;
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
+      animation: fadein 350ms ease;
+    }
+    .metric-card .metric-value.text {
+      font-family: var(--font-sans);
+      font-size: 18px;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      gap: 6px;
+    }
+    .metric-card .metric-value .delta {
+      font-family: var(--font-sans);
+      font-size: 12px;
+      font-weight: 400;
+      letter-spacing: 0;
+    }
+    .delta.up { color: var(--warn); }
+    .delta.down { color: var(--success); }
+    .delta.neutral { color: var(--text-tertiary); }
+    .metric-card .metric-sub {
+      margin-top: var(--space-4);
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .metric-card .metric-foot {
+      margin-top: var(--space-4);
+      font-size: 11px;
+      color: var(--text-tertiary);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .dash-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: var(--space-5);
+    }
+
+    .chart-card { padding: var(--space-5); }
+    .chart-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-4);
+    }
+    .chart-title h3 {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: -0.005em;
+    }
+    .chart-legend {
+      display: flex;
+      gap: var(--space-4);
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+    .chart-legend span { display: inline-flex; align-items: center; gap: 5px; }
+    .chart-legend .dot { width: 6px; height: 6px; border-radius: 50%; }
+    .chart-svg { width: 100%; height: 200px; display: block; }
+    .chart-foot {
+      display: flex;
+      justify-content: space-between;
+      padding-top: var(--space-3);
+      font-size: 11px;
+      color: var(--text-tertiary);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .activity-feed { padding: 0; }
+    .activity-item {
+      display: grid;
+      grid-template-columns: 28px 1fr auto;
+      gap: 12px;
+      padding: 12px var(--space-5);
+      border-bottom: 1px solid var(--border);
+      align-items: center;
+      transition: background var(--transition-fast);
+    }
+    .activity-item:last-child { border-bottom: 0; }
+    .activity-item:hover { background: var(--bg-hover); }
+    .activity-body { font-size: 13px; line-height: 1.5; }
+    .activity-body .who { font-weight: 500; color: var(--text); }
+    .activity-body .what { color: var(--text-secondary); }
+    .activity-body .where {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--accent);
+    }
+    .activity-body em {
+      color: var(--text-tertiary);
+      font-style: italic;
+    }
+    .activity-time {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .health-card { padding: var(--space-5); }
+    .health-big {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+      margin-bottom: var(--space-5);
+    }
+    .health-ring-big {
+      width: 56px; height: 56px;
+      position: relative;
+      flex-shrink: 0;
+    }
+    .health-ring-big svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+    .health-ring-big .label {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+      font-size: 18px;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+    }
+    .health-meta { color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
+    .health-meta strong { display: block; color: var(--text); font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+    .health-meta .delta-up { color: var(--success); }
+
+    .tip-list { display: flex; flex-direction: column; gap: var(--space-2); }
+    .tip {
+      display: grid;
+      grid-template-columns: 28px 1fr auto;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-2);
+      background: var(--bg);
+      transition: border-color var(--transition-fast), background var(--transition-fast);
+    }
+    .tip:hover { border-color: var(--border-strong); background: var(--bg-hover); }
+    .tip-icon {
+      width: 28px; height: 28px;
+      border-radius: var(--radius-2);
+      display: grid;
+      place-items: center;
+    }
+    .tip-icon.warn { color: var(--warn); background: var(--warn-soft); }
+    .tip-icon.info { color: var(--info); background: var(--info-soft); }
+    .tip-icon.error { color: var(--error); background: var(--error-soft); }
+    .tip-body { font-size: 13px; line-height: 1.4; align-self: center; }
+    .tip-body .tip-title { font-weight: 500; color: var(--text); }
+    .tip-body .tip-desc { color: var(--text-secondary); font-size: 12px; margin-top: 2px; }
+    .tip-action {
+      align-self: center;
+      font-size: 12px;
+      color: var(--text-tertiary);
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+    }
+    .tip:hover .tip-action { color: var(--accent); }
+
+    /* =========================================================
+       Scene: Review Queue
+       ========================================================= */
+    .review-layout {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: var(--space-5);
+    }
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-3);
+      background: var(--bg);
+      margin-bottom: var(--space-5);
+      align-items: center;
+    }
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .filter-group .filter-label {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      margin-right: 2px;
+    }
+    .chip {
+      padding: 3px 10px;
+      font-size: 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+      font-variant-numeric: tabular-nums;
+    }
+    .chip:hover { background: var(--bg-hover); border-color: var(--border-strong); color: var(--text); }
+    .chip.active {
+      background: var(--text);
+      color: var(--bg);
+      border-color: var(--text);
+    }
+    .chip.warn-mode { color: var(--warn); border-color: var(--warn-border); }
+
+    .bundle-group {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-3);
+      background: var(--bg);
+      margin-bottom: var(--space-3);
+      overflow: hidden;
+    }
+    .bundle-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px var(--space-5);
+      background: var(--bg);
+      border-bottom: 1px solid transparent;
+      cursor: pointer;
+      transition: background var(--transition-fast);
+    }
+    .bundle-header.expanded { border-bottom-color: var(--border); background: var(--bg-subtle); }
+    .bundle-header:hover { background: var(--bg-hover); }
+    .bundle-header .bundle-chevron { color: var(--text-tertiary); }
+    .bundle-header .bundle-title {
+      font-weight: 500;
+      font-size: 14px;
+      letter-spacing: -0.005em;
+    }
+    .bundle-header .bundle-meta {
+      color: var(--text-tertiary);
+      font-size: 12px;
+      font-family: var(--font-mono);
+    }
+    .bundle-header .bundle-spacer { flex: 1; }
+
+    .propose-card {
+      padding: var(--space-5);
+      border-bottom: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      transition: background var(--transition-fast);
+    }
+    .propose-card:last-child { border-bottom: 0; }
+    .propose-card.selected {
+      background: var(--bg-subtle);
+      box-shadow: inset 2px 0 0 var(--primary);
+    }
+    .propose-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .propose-path {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text);
+      font-weight: 500;
+    }
+    .propose-path .path-prefix { color: var(--text-tertiary); }
+    .propose-id {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-tertiary);
+    }
+    .propose-time {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      font-variant-numeric: tabular-nums;
+    }
+    .propose-spacer { flex: 1; }
+
+    .diff-block {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-2);
+      overflow: hidden;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.65;
+      background: var(--bg);
+    }
+    .diff-line {
+      display: grid;
+      grid-template-columns: 44px 16px 1fr;
+      align-items: stretch;
+    }
+    .diff-line .line-num {
+      padding: 0 8px;
+      text-align: right;
+      color: var(--text-tertiary);
+      background: var(--bg-subtle);
+      border-right: 1px solid var(--border);
+      user-select: none;
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+    .diff-line .sign {
+      text-align: center;
+      color: var(--text-tertiary);
+      background: var(--bg-subtle);
+      font-size: 11px;
+    }
+    .diff-line .content {
+      padding: 0 12px;
+      white-space: pre;
+      overflow: hidden;
+      color: var(--text);
+    }
+    .diff-line.add { background: var(--diff-add); }
+    .diff-line.add .sign { color: var(--diff-add-marker); background: var(--diff-add); }
+    .diff-line.add .line-num { background: var(--diff-add); }
+    .diff-line.del { background: var(--diff-del); }
+    .diff-line.del .sign { color: var(--diff-del-marker); background: var(--diff-del); }
+    .diff-line.del .line-num { background: var(--diff-del); }
+    .diff-collapsed {
+      padding: 8px 12px;
+      font-size: 11px;
+      color: var(--text-tertiary);
+      background: var(--bg-subtle);
+      border-top: 1px solid var(--border);
+      text-align: center;
+      cursor: pointer;
+      transition: color var(--transition-fast);
+    }
+    .diff-collapsed:hover { color: var(--accent); }
+
+    .propose-meta {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+      flex-wrap: wrap;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .propose-meta .meta-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .propose-meta .meta-item .icon { color: var(--text-tertiary); }
+    .propose-meta .meta-item strong { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
+    .propose-meta code {
+      background: var(--bg-subtle);
+      padding: 1px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      font-size: 11px;
+    }
+    .propose-meta .ok { color: var(--success); }
+    .propose-meta .warn { color: var(--warn); }
+
+    .propose-actions {
+      display: flex;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+
+    /* Right inspector */
+    .inspector {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-3);
+      background: var(--bg);
+      padding: var(--space-5);
+      position: sticky;
+      top: 0;
+      align-self: start;
+    }
+    .inspector h3 {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: -0.005em;
+      margin-bottom: var(--space-4);
+    }
+    .inspector-section { margin-bottom: var(--space-5); }
+    .inspector-section:last-child { margin-bottom: 0; }
+    .inspector-section .sec-label {
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      color: var(--text-tertiary);
+      font-weight: 500;
+      margin-bottom: var(--space-2);
+      text-transform: uppercase;
+    }
+    .dep-graph {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .dep-node {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-2);
+      font-size: 12px;
+      font-family: var(--font-mono);
+      background: var(--bg);
+      color: var(--text-secondary);
+    }
+    .dep-node.root {
+      border-color: var(--text);
+      background: var(--bg);
+      color: var(--text);
+      font-weight: 500;
+    }
+    .dep-arrow {
+      padding-left: 16px;
+      color: var(--text-tertiary);
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+    .impact-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .impact-list li {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .impact-list .impact-num {
+      font-family: var(--font-mono);
+      color: var(--text);
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      min-width: 24px;
+    }
+    .impact-list .impact-num.ok { color: var(--success); }
+    .source-mini {
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-2);
+      background: var(--bg-subtle);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--accent);
+      line-height: 1.5;
+    }
+    .source-mini .source-meta {
+      color: var(--text-tertiary);
+      margin-top: 4px;
+    }
+
+    /* =========================================================
+       Scene: Wiki
+       ========================================================= */
+    .wiki-layout {
+      display: grid;
+      grid-template-columns: 240px 1fr 280px;
+      gap: var(--space-5);
+      min-height: calc(100vh - 52px - 96px);
+    }
+    .wiki-tree {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-3);
+      background: var(--bg);
+      padding: var(--space-3);
+      font-size: 13px;
+      align-self: start;
+      position: sticky;
+      top: 0;
+      max-height: calc(100vh - 52px - 96px);
+      overflow-y: auto;
+    }
+    .tree-section {
+      padding: 6px 8px 4px;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      color: var(--text-tertiary);
+      font-weight: 500;
+    }
+    .tree-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 8px;
+      border-radius: var(--radius-1);
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 13px;
+      transition: background var(--transition-fast), color var(--transition-fast);
+    }
+    .tree-item:hover { background: var(--bg-hover); color: var(--text); }
+    .tree-item.active {
+      background: var(--claim-soft);
+      color: var(--claim);
+      font-weight: 500;
+    }
+    .tree-item .icon { color: var(--text-tertiary); }
+    .tree-item.dir { color: var(--text); font-weight: 500; }
+    .tree-item.dir .icon { color: var(--text-secondary); }
+    .tree-children {
+      padding-left: 6px;
+      margin-left: 11px;
+      border-left: 1px solid var(--border);
+    }
+    .tree-item.claim { color: var(--claim); }
+    .tree-item.claim .icon { color: var(--claim); }
+    .tree-item.entity { color: var(--entity); }
+    .tree-item.entity .icon { color: var(--entity); }
+    .tree-item.concept { color: var(--concept); }
+    .tree-item.concept .icon { color: var(--concept); }
+
+    .wiki-content {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-3);
+      background: var(--bg);
+      padding: var(--space-10) var(--space-12);
+    }
+    .wiki-breadcrumb {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      margin-bottom: var(--space-3);
+      font-family: var(--font-mono);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .wiki-breadcrumb .sep { color: var(--text-disabled); }
+    .wiki-breadcrumb .current { color: var(--claim); }
+    .wiki-title-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: var(--space-4);
+      flex-wrap: wrap;
+    }
+    .wiki-title-row h1 {
+      font-size: 28px;
+      font-weight: 600;
+      letter-spacing: -0.025em;
+      line-height: 1.2;
+    }
+    .wiki-frontmatter {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-2);
+      background: var(--bg-subtle);
+      margin-bottom: var(--space-6);
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+    .wiki-frontmatter summary {
+      padding: 10px 14px;
+      cursor: pointer;
+      color: var(--text-secondary);
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .wiki-frontmatter summary::-webkit-details-marker { display: none; }
+    .wiki-frontmatter summary .icon { transition: transform var(--transition); color: var(--text-tertiary); }
+    .wiki-frontmatter[open] summary .icon { transform: rotate(90deg); }
+    .wiki-frontmatter .frontmatter-body {
+      padding: 10px 14px 12px;
+      border-top: 1px solid var(--border);
+    }
+    .frontmatter-line {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 8px;
+      padding: 2px 0;
+      color: var(--text-secondary);
+    }
+    .frontmatter-line .k { color: var(--claim); }
+    .frontmatter-line .v { color: var(--text); }
+
+    .wiki-body {
+      font-size: 15px;
+      line-height: 1.75;
+      color: var(--text);
+    }
+    .wiki-body p { margin-bottom: var(--space-4); }
+    .wiki-body .wikilink {
+      color: var(--accent);
+      border-bottom: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+      padding-bottom: 1px;
+      cursor: pointer;
+      transition: border-color var(--transition-fast);
+    }
+    .wiki-body .wikilink:hover { border-bottom-color: var(--accent); }
+    .wiki-body .wikilink.claim { color: var(--claim); border-color: color-mix(in srgb, var(--claim) 30%, transparent); }
+    .wiki-body .wikilink.claim:hover { border-color: var(--claim); }
+    .wiki-body .wikilink.concept { color: var(--concept); border-color: color-mix(in srgb, var(--concept) 30%, transparent); }
+    .wiki-body .wikilink.concept:hover { border-color: var(--concept); }
+
+    .wiki-section-title {
+      margin: var(--space-8) 0 var(--space-4);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: -0.005em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text);
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .wiki-section-title .icon { color: var(--text-tertiary); }
+    .wiki-section-title .count {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      font-weight: 400;
+      margin-left: auto;
+      font-variant-numeric: tabular-nums;
+      font-family: var(--font-mono);
+    }
+
+    .source-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-3);
+      background: var(--bg);
+      padding: var(--space-5);
+      margin-bottom: 10px;
+      transition: border-color var(--transition-fast);
+    }
+    .source-card:hover { border-color: var(--border-strong); }
+    .source-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+    .source-path {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text);
+      font-weight: 500;
+    }
+    .source-anchor {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--accent);
+    }
+    .source-quote {
+      padding: 12px 16px;
+      border-left: 2px solid var(--accent);
+      background: var(--bg-subtle);
+      border-radius: 0 var(--radius-2) var(--radius-2) 0;
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--text);
+      margin-bottom: 10px;
+      font-style: italic;
+    }
+    .source-quote.drift { border-left-color: var(--warn); }
+    .source-meta {
+      display: flex;
+      gap: var(--space-4);
+      font-size: 11px;
+      color: var(--text-tertiary);
+      font-family: var(--font-mono);
+      align-items: center;
+      flex-wrap: wrap;
+      font-variant-numeric: tabular-nums;
+    }
+    .source-meta .ok { color: var(--success); }
+    .source-meta .warn { color: var(--warn); }
+
+    .history-list { font-size: 13px; }
+    .history-item {
+      display: grid;
+      grid-template-columns: 80px 1fr auto;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      align-items: center;
+    }
+    .history-item:last-child { border-bottom: 0; }
+    .history-sha {
+      font-family: var(--font-mono);
+      color: var(--accent);
+      font-size: 12px;
+    }
+    .history-msg { color: var(--text); font-size: 13px; }
+    .history-when {
+      color: var(--text-tertiary);
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .wiki-side {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-3);
+      background: var(--bg);
+      padding: var(--space-5);
+      align-self: start;
+      position: sticky;
+      top: 0;
+      max-height: calc(100vh - 52px - 96px);
+      overflow-y: auto;
+    }
+    .side-section { margin-bottom: var(--space-6); }
+    .side-section:last-child { margin-bottom: 0; }
+    .side-label {
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      color: var(--text-tertiary);
+      font-weight: 500;
+      margin-bottom: var(--space-3);
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .side-label .count {
+      color: var(--text-disabled);
+      font-weight: 400;
+      letter-spacing: 0;
+      text-transform: none;
+      font-variant-numeric: tabular-nums;
+    }
+    .backref-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: var(--radius-2);
+      font-size: 12px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: background var(--transition-fast), color var(--transition-fast);
+    }
+    .backref-item:hover { background: var(--bg-hover); color: var(--text); }
+    .backref-item .icon.entity { color: var(--entity); }
+    .backref-item .icon.concept { color: var(--concept); }
+    .related-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-2);
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin: 0 4px 4px 0;
+      transition: border-color var(--transition-fast);
+    }
+    .related-tag:hover { border-color: var(--border-strong); }
+    .related-tag.entity { color: var(--entity); }
+    .related-tag.concept { color: var(--concept); }
+    .related-tag.claim { color: var(--claim); }
+    .side-action-list { display: flex; flex-direction: column; gap: 4px; }
+    .side-action-list .btn { justify-content: flex-start; width: 100%; }
+    .provenance-note {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+    .provenance-note strong { color: var(--text); }
+    .provenance-note .ok { color: var(--success); }
+
+    /* =========================================================
+       Scene: Ingest
+       ========================================================= */
+    .ingest-timeline {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr) auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-3);
+      background: var(--bg);
+      overflow: hidden;
+      margin-bottom: var(--space-5);
+    }
+    .stage {
+      padding: var(--space-4) var(--space-5);
+      border-right: 1px solid var(--border);
+      position: relative;
+      transition: background var(--transition-fast);
+    }
+    .stage:last-of-type { border-right: 0; }
+    .stage .stage-num {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      font-family: var(--font-mono);
+      margin-bottom: 6px;
+      font-variant-numeric: tabular-nums;
+    }
+    .stage .stage-name {
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      letter-spacing: -0.005em;
+    }
+    .stage .stage-meta {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      font-variant-numeric: tabular-nums;
+    }
+    .stage.done .stage-name { color: var(--success); }
+    .stage.done .stage-name .icon { color: var(--success); }
+    .stage.active .stage-name { color: var(--accent); }
+    .stage.active { background: var(--accent-soft); }
+    .stage.pending .stage-name { color: var(--text-tertiary); }
+    .stage-action {
+      padding: var(--space-4);
+      display: grid;
+      place-items: center;
+      background: var(--bg-subtle);
+      border-left: 1px solid var(--border);
+    }
+
+    .pulse-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pulse 1.6s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.3; transform: scale(0.75); }
+    }
+
+    .ingest-grid {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: var(--space-5);
+      margin-bottom: var(--space-5);
+    }
+    .file-list { padding: 0; }
+    .file-row {
+      display: grid;
+      grid-template-columns: 18px 1fr auto;
+      gap: 10px;
+      padding: 12px var(--space-5);
+      border-bottom: 1px solid var(--border);
+      align-items: center;
+      cursor: pointer;
+      transition: background var(--transition-fast);
+    }
+    .file-row:last-child { border-bottom: 0; }
+    .file-row:hover { background: var(--bg-hover); }
+    .file-row.selected {
+      background: var(--bg-subtle);
+      box-shadow: inset 2px 0 0 var(--primary);
+    }
+    .file-icon { color: var(--text-tertiary); }
+    .file-row.selected .file-icon { color: var(--accent); }
+    .file-row.selected .file-name { color: var(--accent); }
+    .file-name {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text);
+    }
+    .file-name .file-meta {
+      display: block;
+      font-family: var(--font-sans);
+      color: var(--text-tertiary);
+      font-size: 11px;
+      margin-top: 3px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .file-detail .detail-section {
+      padding: var(--space-5);
+      border-bottom: 1px solid var(--border);
+    }
+    .file-detail .detail-section:last-child { border-bottom: 0; }
+    .detail-label {
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      color: var(--text-tertiary);
+      margin-bottom: 10px;
+      font-weight: 500;
+      text-transform: uppercase;
+    }
+    .detail-meta {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px 14px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+    }
+    .detail-meta .k { color: var(--text-tertiary); }
+    .detail-meta .v { color: var(--text); }
+
+    .extracted-claim {
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-2);
+      background: var(--bg);
+      margin-bottom: 8px;
+      transition: border-color var(--transition-fast);
+    }
+    .extracted-claim:last-child { margin-bottom: 0; }
+    .extracted-claim:hover { border-color: var(--border-strong); }
+    .ec-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      font-size: 12px;
+    }
+    .ec-id {
+      font-family: var(--font-mono);
+      color: var(--text-tertiary);
+      font-size: 11px;
+    }
+    .ec-conf {
+      color: var(--text-tertiary);
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+      font-family: var(--font-mono);
+    }
+    .ec-conf.warn { color: var(--warn); }
+    .ec-text {
+      font-size: 13px;
+      line-height: 1.55;
+      color: var(--text);
+    }
+    .ec-text code {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      background: var(--bg-subtle);
+      padding: 1px 5px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+
+    .extracting-more {
+      padding: 12px;
+      text-align: center;
+      color: var(--text-tertiary);
+      font-size: 12px;
+      border: 1px dashed var(--border);
+      border-radius: var(--radius-2);
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .worker-pool { padding: 0; }
+    .worker-row {
+      display: grid;
+      grid-template-columns: 28px 110px 90px 1fr 70px;
+      gap: 14px;
+      padding: 12px var(--space-5);
+      border-bottom: 1px solid var(--border);
+      align-items: center;
+      font-size: 12px;
+    }
+    .worker-row:last-child { border-bottom: 0; }
+    .worker-row .w-avatar {
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      color: #fff;
+      letter-spacing: -0.04em;
+    }
+    .worker-row .w-name { font-weight: 500; color: var(--text); letter-spacing: -0.005em; }
+    .worker-row .w-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+    }
+    .worker-row .w-status .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+    }
+    .worker-row.busy .dot {
+      background: var(--accent);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+    }
+    .worker-row.idle .dot { background: var(--text-tertiary); }
+    .worker-row.busy .w-status { color: var(--accent); }
+    .worker-row.idle .w-status { color: var(--text-tertiary); }
+    .worker-row .w-job {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+    .worker-row .w-queue {
+      font-family: var(--font-mono);
+      text-align: right;
+      color: var(--text-tertiary);
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* =========================================================
+       Misc
+       ========================================================= */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-strong);
+      border-radius: 999px;
+      border: 2px solid var(--bg);
+    }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::selection { background: var(--accent-soft); color: var(--text); }
+    *:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-radius: var(--radius-2);
+    }
+    *:focus:not(:focus-visible) { outline: none; }
+  </style>
+</head>
+<body>
+
+  <!-- ============================ Icon defs ============================ -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-dashboard" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></symbol>
+      <symbol id="i-scale" viewBox="0 0 24 24"><path d="M16 16c0 1.7 1.3 3 3 3s3-1.3 3-3l-3-9-3 9zM2 16c0 1.7 1.3 3 3 3s3-1.3 3-3L5 7l-3 9zM7 21h10M12 3v18M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></symbol>
+      <symbol id="i-book-open" viewBox="0 0 24 24"><path d="M2 3h6c2 0 4 1 4 3v15c0-2-2-3-4-3H2zM22 3h-6c-2 0-4 1-4 3v15c0-2 2-3 4-3h6z"/></symbol>
+      <symbol id="i-zap" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></symbol>
+      <symbol id="i-file-text" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="8" y1="9" x2="10" y2="9"/></symbol>
+      <symbol id="i-circle-dot" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" fill="currentColor" fill-opacity="0.15"/></symbol>
+      <symbol id="i-archive" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></symbol>
+      <symbol id="i-bot" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="12" rx="2"/><line x1="12" y1="4" x2="12" y2="8"/><circle cx="9" cy="14" r="1.2" fill="currentColor"/><circle cx="15" cy="14" r="1.2" fill="currentColor"/></symbol>
+      <symbol id="i-list-checks" viewBox="0 0 24 24"><polyline points="3 5 5 7 9 3"/><polyline points="3 12 5 14 9 10"/><polyline points="3 19 5 21 9 17"/><line x1="13" y1="6" x2="21" y2="6"/><line x1="13" y1="13" x2="21" y2="13"/><line x1="13" y1="20" x2="21" y2="20"/></symbol>
+      <symbol id="i-timer" viewBox="0 0 24 24"><line x1="10" y1="2" x2="14" y2="2"/><line x1="12" y1="14" x2="15" y2="11"/><circle cx="12" cy="14" r="8"/></symbol>
+      <symbol id="i-settings" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+      <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+      <symbol id="i-library" viewBox="0 0 24 24"><path d="M16 6l4 14M12 6v14M8 8v12M4 4v16"/></symbol>
+      <symbol id="i-chevron-down" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></symbol>
+      <symbol id="i-chevron-right" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></symbol>
+      <symbol id="i-x" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+      <symbol id="i-alert-triangle" viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r="0.6" fill="currentColor"/></symbol>
+      <symbol id="i-alert-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="0.6" fill="currentColor"/></symbol>
+      <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="8" r="0.6" fill="currentColor"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></symbol>
+      <symbol id="i-arrow-up-right" viewBox="0 0 24 24"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></symbol>
+      <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+      <symbol id="i-git-commit" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><line x1="1.05" y1="12" x2="7" y2="12"/><line x1="17.01" y1="12" x2="22.96" y2="12"/></symbol>
+      <symbol id="i-external" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></symbol>
+      <symbol id="i-undo" viewBox="0 0 24 24"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></symbol>
+      <symbol id="i-folder" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></symbol>
+      <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></symbol>
+      <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></symbol>
+      <symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></symbol>
+      <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+      <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="6.34" y2="6.34"/><line x1="17.66" y1="17.66" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="6.34" y2="17.66"/><line x1="17.66" y1="6.34" x2="19.07" y2="4.93"/></symbol>
+      <symbol id="i-package" viewBox="0 0 24 24"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></symbol>
+      <symbol id="i-inbox" viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></symbol>
+      <symbol id="i-flame" viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></symbol>
+      <symbol id="i-quote" viewBox="0 0 24 24"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h2c1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z"/><path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h2c1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z"/></symbol>
+      <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+      <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><polyline points="12 7 12 12 15 14"/></symbol>
+      <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></symbol>
+      <symbol id="i-shield-check" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></symbol>
+      <symbol id="i-trending" viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></symbol>
+      <symbol id="i-command" viewBox="0 0 24 24"><path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"/></symbol>
+    </defs>
+  </svg>
+
+  <!-- ============================ Topbar ============================ -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-logo">W</div>
+      <span>WikiMind</span>
+      <span class="brand-version">v0.1.0</span>
+    </div>
+    <button class="vault-switcher" title="切换 vault">
+      <svg class="icon icon-sm"><use href="#i-library"/></svg>
+      <span class="vault-name">karpathy-vault</span>
+      <svg class="icon icon-sm"><use href="#i-chevron-down"/></svg>
+    </button>
+    <div class="search-box">
+      <svg class="icon icon-sm"><use href="#i-search"/></svg>
+      <span style="flex: 1;">Search wiki, claims, sources…</span>
+      <span class="kbd">⌘K</span>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="status-pill">
+      <span class="dot"></span>
+      <span>4 agents online</span>
+    </div>
+    <button class="icon-btn" title="通知"><svg class="icon"><use href="#i-bell"/></svg></button>
+    <button class="icon-btn" title="设置"><svg class="icon"><use href="#i-settings"/></svg></button>
+  </header>
+
+  <!-- ============================ Sidebar ============================ -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Workspace</div>
+      <a class="nav-item active" data-scene="dashboard">
+        <svg class="icon"><use href="#i-dashboard"/></svg>
+        <span class="nav-text">Dashboard</span>
+      </a>
+      <a class="nav-item" data-scene="review">
+        <svg class="icon"><use href="#i-scale"/></svg>
+        <span class="nav-text">Review Queue</span>
+        <span class="nav-badge warn num">12</span>
+      </a>
+      <a class="nav-item" data-scene="wiki">
+        <svg class="icon"><use href="#i-book-open"/></svg>
+        <span class="nav-text">Wiki</span>
+        <span class="nav-badge num">347</span>
+      </a>
+      <a class="nav-item" data-scene="ingest">
+        <svg class="icon"><use href="#i-zap"/></svg>
+        <span class="nav-text">Ingest</span>
+        <span class="nav-badge num">3</span>
+      </a>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Knowledge</div>
+      <a class="nav-item disabled" title="v0.2">
+        <svg class="icon"><use href="#i-quote"/></svg>
+        <span class="nav-text">Claims</span>
+        <span class="nav-badge num">186</span>
+      </a>
+      <a class="nav-item disabled" title="v0.2">
+        <svg class="icon"><use href="#i-circle-dot"/></svg>
+        <span class="nav-text">Entities</span>
+        <span class="nav-badge num">42</span>
+      </a>
+      <a class="nav-item disabled" title="v0.2">
+        <svg class="icon"><use href="#i-compass"/></svg>
+        <span class="nav-text">Concepts</span>
+        <span class="nav-badge num">28</span>
+      </a>
+      <a class="nav-item disabled" title="v0.2">
+        <svg class="icon"><use href="#i-archive"/></svg>
+        <span class="nav-text">Sources</span>
+        <span class="nav-badge num">91</span>
+      </a>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">System</div>
+      <a class="nav-item disabled" title="v0.2">
+        <svg class="icon"><use href="#i-bot"/></svg>
+        <span class="nav-text">Agents</span>
+      </a>
+      <a class="nav-item disabled" title="v0.2">
+        <svg class="icon"><use href="#i-list-checks"/></svg>
+        <span class="nav-text">Lint Rules</span>
+      </a>
+      <a class="nav-item disabled" title="v0.2">
+        <svg class="icon"><use href="#i-timer"/></svg>
+        <span class="nav-text">Dream Cycle</span>
+      </a>
+      <a class="nav-item disabled" title="v0.2">
+        <svg class="icon"><use href="#i-settings"/></svg>
+        <span class="nav-text">Settings</span>
+      </a>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="vault-card">
+        <div class="vault-card-head">
+          <div class="ring" style="width: 36px; height: 36px;">
+            <svg viewBox="0 0 36 36">
+              <circle class="track" cx="18" cy="18" r="15" fill="none" stroke-width="3"/>
+              <circle class="progress" cx="18" cy="18" r="15" fill="none" stroke-width="3"
+                      stroke-dasharray="94.25" stroke-dashoffset="12.25" stroke-linecap="round"/>
+            </svg>
+            <div class="label num">87</div>
+          </div>
+          <div>
+            <div class="vault-card-title">Vault Health</div>
+            <div class="vault-card-sub num">last sync 2 min ago</div>
+          </div>
+        </div>
+        <div class="vault-card-stats">
+          <span><strong>347</strong> pages</span>
+          <span><strong>186</strong> claims</span>
+        </div>
+      </div>
+      <button class="theme-toggle" id="themeToggle">
+        <svg class="icon icon-sm" id="themeIcon"><use href="#i-moon"/></svg>
+        <span id="themeLabel">Dark</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ============================ Main ============================ -->
+  <main class="main">
+
+    <!-- ====================================================================
+         Scene 1: Dashboard
+         ==================================================================== -->
+    <section class="scene active" id="dashboard">
+      <div class="page-header">
+        <div class="page-header-row">
+          <div>
+            <h1>Dashboard</h1>
+            <div class="subtitle">
+              <span>karpathy-vault</span>
+              <span style="color: var(--text-disabled);">·</span>
+              <span class="num">最近 14 天</span>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn">
+              <svg class="icon icon-sm"><use href="#i-refresh"/></svg>
+              Refresh
+            </button>
+            <button class="btn btn-primary">
+              <svg class="icon icon-sm"><use href="#i-plus"/></svg>
+              Ingest file
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Metric cards -->
+      <div class="metric-grid">
+        <div class="metric-card">
+          <div class="metric-label">
+            <svg class="icon icon-sm"><use href="#i-scale"/></svg>
+            <span>Pending Reviews</span>
+          </div>
+          <div class="metric-value">
+            12
+            <span class="delta up">+4 today</span>
+          </div>
+          <div class="metric-sub">
+            <span class="badge error"><span class="dot"></span>3 critical</span>
+            <span class="badge"><span class="dot"></span>7 normal</span>
+            <span class="badge"><span class="dot"></span>2 low</span>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-label">
+            <svg class="icon icon-sm"><use href="#i-list-checks"/></svg>
+            <span>Lint Warnings</span>
+          </div>
+          <div class="metric-value">
+            7
+            <span class="delta down">−2 today</span>
+          </div>
+          <div class="metric-sub">
+            <span class="badge warn">4 broken_link</span>
+            <span class="badge warn">2 stale</span>
+            <span class="badge warn">1 unverified</span>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-label">
+            <svg class="icon icon-sm"><use href="#i-timer"/></svg>
+            <span>Dream Cycle</span>
+          </div>
+          <div class="metric-value text">
+            <svg class="icon" style="color: var(--success);"><use href="#i-check"/></svg>
+            Healthy
+          </div>
+          <div class="metric-foot">
+            last 19h ago · next ~5h
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-label">
+            <svg class="icon icon-sm"><use href="#i-bot"/></svg>
+            <span>Agent Activity</span>
+          </div>
+          <div class="metric-value">
+            4
+            <span class="delta neutral">active now</span>
+          </div>
+          <div class="metric-sub">
+            <span class="agent-badge"><span class="agent-avatar av-claude">C</span>claude</span>
+            <span class="agent-badge"><span class="agent-avatar av-codex">X</span>codex</span>
+            <span class="agent-badge"><span class="agent-avatar av-hermes">H</span>hermes</span>
+            <span class="agent-badge"><span class="agent-avatar av-cursor">U</span>cursor</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts + Health -->
+      <div class="dash-grid">
+        <div class="card chart-card">
+          <div class="chart-title">
+            <h3>Activity Timeline</h3>
+            <div class="chart-legend">
+              <span><span class="dot" style="background: var(--accent);"></span>commits</span>
+              <span><span class="dot" style="background: var(--claim);"></span>claims</span>
+              <span><span class="dot" style="background: var(--warn);"></span>warnings</span>
+            </div>
+          </div>
+          <svg class="chart-svg" viewBox="0 0 600 200" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="commits-grad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="currentColor" stop-opacity="0.18"/>
+                <stop offset="100%" stop-color="currentColor" stop-opacity="0"/>
+              </linearGradient>
+              <linearGradient id="claims-grad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="currentColor" stop-opacity="0.10"/>
+                <stop offset="100%" stop-color="currentColor" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+
+            <!-- Commits area -->
+            <g style="color: var(--accent);">
+              <path d="M 21,165 L 63,155 L 105,135 L 147,148 L 189,100 L 231,115 L 273,88 L 315,103 L 357,68 L 399,78 L 441,60 L 483,50 L 525,32 L 567,42 L 567,180 L 21,180 Z"
+                    fill="url(#commits-grad)"/>
+              <path d="M 21,165 L 63,155 L 105,135 L 147,148 L 189,100 L 231,115 L 273,88 L 315,103 L 357,68 L 399,78 L 441,60 L 483,50 L 525,32 L 567,42"
+                    fill="none" stroke="currentColor" stroke-width="1.5"/>
+              <!-- Peak marker -->
+              <circle cx="525" cy="32" r="3" fill="currentColor"/>
+              <circle cx="525" cy="32" r="6" fill="none" stroke="currentColor" stroke-opacity="0.3" stroke-width="1"/>
+            </g>
+
+            <!-- Claims line -->
+            <g style="color: var(--claim);">
+              <path d="M 21,172 L 63,166 L 105,154 L 147,162 L 189,130 L 231,138 L 273,118 L 315,128 L 357,98 L 399,103 L 441,90 L 483,80 L 525,66 L 567,76"
+                    fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2,3" stroke-opacity="0.7"/>
+            </g>
+
+            <!-- Warning bars -->
+            <g style="color: var(--warn);" fill="currentColor" fill-opacity="0.35">
+              <rect x="17" y="175" width="6" height="5"/>
+              <rect x="59" y="173" width="6" height="7"/>
+              <rect x="101" y="170" width="6" height="10"/>
+              <rect x="143" y="175" width="6" height="5"/>
+              <rect x="185" y="165" width="6" height="15"/>
+              <rect x="227" y="170" width="6" height="10"/>
+              <rect x="269" y="167" width="6" height="13"/>
+              <rect x="311" y="175" width="6" height="5"/>
+              <rect x="353" y="165" width="6" height="15"/>
+              <rect x="395" y="170" width="6" height="10"/>
+              <rect x="437" y="175" width="6" height="5"/>
+              <rect x="479" y="173" width="6" height="7"/>
+              <rect x="521" y="170" width="6" height="10"/>
+              <rect x="563" y="175" width="6" height="5"/>
+            </g>
+
+            <!-- X-axis labels -->
+            <g font-size="10" fill="currentColor" fill-opacity="0.35" text-anchor="middle" font-family="Geist Mono, ui-monospace, monospace">
+              <text x="21"  y="195">5/8</text>
+              <text x="105" y="195">5/10</text>
+              <text x="189" y="195">5/12</text>
+              <text x="273" y="195">5/14</text>
+              <text x="357" y="195">5/16</text>
+              <text x="441" y="195">5/18</text>
+              <text x="525" y="195">5/20</text>
+            </g>
+          </svg>
+          <div class="chart-foot">
+            <span>共 87 commits · +42 claims · 7 warnings</span>
+            <span>peak: 5/20 (13 commits)</span>
+          </div>
+        </div>
+
+        <div class="card health-card">
+          <div class="health-big">
+            <div class="health-ring-big">
+              <svg viewBox="0 0 56 56">
+                <circle cx="28" cy="28" r="24" fill="none" stroke="var(--border-strong)" stroke-width="3"/>
+                <circle cx="28" cy="28" r="24" fill="none" stroke="var(--success)" stroke-width="3"
+                        stroke-dasharray="150.8" stroke-dashoffset="19.6" stroke-linecap="round"/>
+              </svg>
+              <div class="label">87</div>
+            </div>
+            <div class="health-meta">
+              <strong>Vault Health</strong>
+              <span>87 / 100 — Good</span>
+              <div style="margin-top: 4px;"><span class="delta-up">↑ 4</span> since last week</div>
+            </div>
+          </div>
+
+          <div class="tip-list">
+            <div class="tip">
+              <div class="tip-icon warn"><svg class="icon icon-sm"><use href="#i-scale"/></svg></div>
+              <div class="tip-body">
+                <div class="tip-title">Review backlog 偏高</div>
+                <div class="tip-desc">12 pending, 建议优先清 critical bundle</div>
+              </div>
+              <span class="tip-action">Review <svg class="icon icon-sm"><use href="#i-arrow-up-right"/></svg></span>
+            </div>
+            <div class="tip">
+              <div class="tip-icon info"><svg class="icon icon-sm"><use href="#i-timer"/></svg></div>
+              <div class="tip-body">
+                <div class="tip-title">Dream Cycle 待运行</div>
+                <div class="tip-desc">最后 19h 前；建议每 24h 一次</div>
+              </div>
+              <span class="tip-action">Run <svg class="icon icon-sm"><use href="#i-arrow-up-right"/></svg></span>
+            </div>
+            <div class="tip">
+              <div class="tip-icon error"><svg class="icon icon-sm"><use href="#i-alert-triangle"/></svg></div>
+              <div class="tip-body">
+                <div class="tip-title">1 个 DRIFT claim</div>
+                <div class="tip-desc"><code class="mono">karpathy-llm-wiki.md#section-3</code> 已变更</div>
+              </div>
+              <span class="tip-action">Verify <svg class="icon icon-sm"><use href="#i-arrow-up-right"/></svg></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Activity Feed -->
+      <div class="card" style="margin-top: var(--space-5);">
+        <div class="card-header">
+          <h3>Recent Activity</h3>
+          <span class="card-meta">最近 7 条</span>
+        </div>
+        <ul class="activity-feed">
+          <li class="activity-item">
+            <div class="agent-avatar av-claude" style="width:24px;height:24px;font-size:10px;">C</div>
+            <div class="activity-body">
+              <span class="who">claude-code</span>
+              <span class="what"> proposed claim </span>
+              <span class="where">claims/wiki-is-compounding.md</span>
+              <span class="what"> in bundle </span>
+              <code class="mono" style="color: var(--text-tertiary);">b-0042</code>
+            </div>
+            <div class="activity-time">2 min ago</div>
+          </li>
+          <li class="activity-item">
+            <div class="agent-avatar av-user" style="width:24px;height:24px;font-size:10px;">U</div>
+            <div class="activity-body">
+              <span class="who">you</span>
+              <span class="what"> accepted </span>
+              <code class="mono" style="color: var(--text-tertiary);">r-0241</code>,
+              <code class="mono" style="color: var(--text-tertiary);">r-0242</code>
+              <span class="what"> → merged to </span>
+              <span class="where">entities/karpathy.md</span>
+            </div>
+            <div class="activity-time">8 min ago</div>
+          </li>
+          <li class="activity-item">
+            <div class="agent-avatar av-codex" style="width:24px;height:24px;font-size:10px;">X</div>
+            <div class="activity-body">
+              <span class="who">codex-cli</span>
+              <span class="what"> ran lint, found </span>
+              <strong style="color: var(--warn);">2 broken links</strong>
+              <span class="what"> in </span>
+              <span class="where">concepts/</span>
+            </div>
+            <div class="activity-time">14 min ago</div>
+          </li>
+          <li class="activity-item">
+            <div class="agent-avatar av-hermes" style="width:24px;height:24px;font-size:10px;">H</div>
+            <div class="activity-body">
+              <span class="who">hermes</span>
+              <span class="what"> ingested </span>
+              <span class="where">raw/inbox/mindstudio-blog.html</span>
+              <span class="what"> → </span>
+              <strong>5 claims, 2 entities</strong>
+              <span class="what"> proposed</span>
+            </div>
+            <div class="activity-time">23 min ago</div>
+          </li>
+          <li class="activity-item">
+            <div class="agent-avatar av-user" style="width:24px;height:24px;font-size:10px;">U</div>
+            <div class="activity-body">
+              <span class="who">you</span>
+              <span class="what"> rejected </span>
+              <code class="mono" style="color: var(--text-tertiary);">r-0238</code>
+              <span class="what"> · </span>
+              <em>"quote_hash mismatch, source has changed"</em>
+            </div>
+            <div class="activity-time">31 min ago</div>
+          </li>
+          <li class="activity-item">
+            <div class="agent-avatar av-cursor" style="width:24px;height:24px;font-size:10px;">U</div>
+            <div class="activity-body">
+              <span class="who">cursor</span>
+              <span class="what"> queried wiki — </span>
+              <em>"What is the difference between RAG and LLM Wiki?"</em>
+              <span class="what"> → answer sedimented as draft</span>
+            </div>
+            <div class="activity-time">45 min ago</div>
+          </li>
+          <li class="activity-item">
+            <div class="agent-avatar" style="width:24px;height:24px;font-size:10px;background: var(--text-tertiary);">⟳</div>
+            <div class="activity-body">
+              <span class="who">daemon</span>
+              <span class="what"> ran </span>
+              <strong>Dream Cycle</strong>
+              <span class="what"> · consolidated 3 duplicate concepts, evolved 1 cluster</span>
+            </div>
+            <div class="activity-time">19h ago</div>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         Scene 2: Review Queue
+         ==================================================================== -->
+    <section class="scene" id="review">
+      <div class="page-header">
+        <div class="page-header-row">
+          <div>
+            <h1>Review Queue</h1>
+            <div class="subtitle">
+              <span class="num">12 pending</span>
+              <span style="color: var(--text-disabled);">·</span>
+              <span class="num">3 bundles</span>
+              <span style="color: var(--text-disabled);">·</span>
+              <span class="badge warn"><span class="dot"></span>queue load 24%</span>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-ghost">
+              <svg class="icon icon-sm"><use href="#i-shield-check"/></svg>
+              Auto-accept policy
+            </button>
+            <button class="btn">Reject all stale</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filter bar -->
+      <div class="filter-bar">
+        <div class="filter-group">
+          <span class="filter-label">Agent</span>
+          <button class="chip active">All</button>
+          <button class="chip">claude (7)</button>
+          <button class="chip">codex (3)</button>
+          <button class="chip">hermes (2)</button>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Type</span>
+          <button class="chip">claim (8)</button>
+          <button class="chip">entity (2)</button>
+          <button class="chip">concept (1)</button>
+          <button class="chip">source (1)</button>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Priority</span>
+          <button class="chip warn-mode">Critical (3)</button>
+          <button class="chip">Normal (7)</button>
+          <button class="chip">Low (2)</button>
+        </div>
+        <div style="flex: 1;"></div>
+        <button class="btn btn-sm btn-ghost">Sort: newest <svg class="icon icon-sm"><use href="#i-chevron-down"/></svg></button>
+      </div>
+
+      <div class="review-layout">
+        <!-- Left: bundle groups -->
+        <div>
+          <!-- Bundle 1 — expanded -->
+          <div class="bundle-group">
+            <div class="bundle-header expanded">
+              <svg class="icon bundle-chevron"><use href="#i-chevron-down"/></svg>
+              <svg class="icon" style="color: var(--text-secondary);"><use href="#i-package"/></svg>
+              <div class="bundle-title">Ingest: Karpathy LLM Wiki gist</div>
+              <span class="bundle-meta">b-0042 · 5 proposes</span>
+              <span class="bundle-spacer"></span>
+              <span class="badge error"><span class="dot"></span>critical</span>
+              <span class="agent-badge"><span class="agent-avatar av-claude">C</span>claude</span>
+              <button class="btn btn-sm btn-primary">Accept bundle</button>
+            </div>
+
+            <!-- Propose 1 — selected -->
+            <div class="propose-card selected">
+              <div class="propose-head">
+                <span class="badge claim">claim</span>
+                <span class="propose-path"><span class="path-prefix">wiki/claims/</span>wiki-is-compounding.md</span>
+                <span class="propose-id">r-0245</span>
+                <span class="propose-spacer"></span>
+                <span class="propose-time">2 min ago</span>
+              </div>
+
+              <div class="diff-block">
+                <div class="diff-line add">
+                  <span class="line-num">1</span><span class="sign">+</span>
+                  <span class="content">---</span>
+                </div>
+                <div class="diff-line add">
+                  <span class="line-num">2</span><span class="sign">+</span>
+                  <span class="content">id: cl-2026-05-21-001</span>
+                </div>
+                <div class="diff-line add">
+                  <span class="line-num">3</span><span class="sign">+</span>
+                  <span class="content">type: claim</span>
+                </div>
+                <div class="diff-line add">
+                  <span class="line-num">4</span><span class="sign">+</span>
+                  <span class="content">status: unverified</span>
+                </div>
+                <div class="diff-line add">
+                  <span class="line-num">5</span><span class="sign">+</span>
+                  <span class="content">confidence: 0.85</span>
+                </div>
+                <div class="diff-line add">
+                  <span class="line-num">6</span><span class="sign">+</span>
+                  <span class="content">sources:</span>
+                </div>
+                <div class="diff-collapsed">+ 18 more lines · click to expand</div>
+              </div>
+
+              <div class="propose-meta">
+                <span class="meta-item">
+                  <span style="color: var(--text-tertiary);">conf</span>
+                  <strong>0.85</strong>
+                </span>
+                <span class="meta-item">
+                  <span style="color: var(--text-tertiary);">sources</span>
+                  <strong>2</strong>
+                </span>
+                <span class="meta-item">
+                  <span style="color: var(--text-tertiary);">quote_hash</span>
+                  <code>a7f2e3c1</code>
+                </span>
+                <span class="meta-item">
+                  <span style="color: var(--text-tertiary);">schema</span>
+                  <code>v1.0</code>
+                </span>
+                <span class="meta-item ok">
+                  <svg class="icon icon-sm"><use href="#i-check"/></svg>
+                  quote 校验通过
+                </span>
+              </div>
+
+              <div class="propose-actions">
+                <button class="btn btn-ghost btn-sm">Show full diff</button>
+                <button class="btn btn-sm">Bundle</button>
+                <button class="btn btn-danger btn-sm"><svg class="icon icon-sm"><use href="#i-x"/></svg>Reject</button>
+                <button class="btn btn-primary btn-sm"><svg class="icon icon-sm"><use href="#i-check"/></svg>Accept</button>
+              </div>
+            </div>
+
+            <!-- Propose 2 -->
+            <div class="propose-card">
+              <div class="propose-head">
+                <span class="badge entity">entity</span>
+                <span class="propose-path"><span class="path-prefix">wiki/entities/</span>karpathy.md</span>
+                <span class="propose-id">r-0246</span>
+                <span class="propose-spacer"></span>
+                <span class="propose-time">2 min ago</span>
+              </div>
+
+              <div class="diff-block">
+                <div class="diff-line del">
+                  <span class="line-num">12</span><span class="sign">−</span>
+                  <span class="content">aliases: ["Andrej Karpathy"]</span>
+                </div>
+                <div class="diff-line add">
+                  <span class="line-num">12</span><span class="sign">+</span>
+                  <span class="content">aliases: ["Andrej Karpathy", "@karpathy"]</span>
+                </div>
+                <div class="diff-line add">
+                  <span class="line-num">13</span><span class="sign">+</span>
+                  <span class="content">related: [[cl-2026-05-21-001]]</span>
+                </div>
+              </div>
+
+              <div class="propose-meta">
+                <span class="meta-item">
+                  <span style="color: var(--text-tertiary);">conf</span>
+                  <strong>0.95</strong>
+                </span>
+                <span class="meta-item">
+                  <span style="color: var(--text-tertiary);">type</span>
+                  <strong>edit</strong>
+                </span>
+                <span class="meta-item ok">
+                  <svg class="icon icon-sm"><use href="#i-check"/></svg>
+                  base_hash matches
+                </span>
+              </div>
+
+              <div class="propose-actions">
+                <button class="btn btn-ghost btn-sm">Show full diff</button>
+                <button class="btn btn-danger btn-sm"><svg class="icon icon-sm"><use href="#i-x"/></svg>Reject</button>
+                <button class="btn btn-primary btn-sm"><svg class="icon icon-sm"><use href="#i-check"/></svg>Accept</button>
+              </div>
+            </div>
+
+            <!-- Propose 3 -->
+            <div class="propose-card">
+              <div class="propose-head">
+                <span class="badge claim">claim</span>
+                <span class="propose-path"><span class="path-prefix">wiki/claims/</span>index-md-read-first.md</span>
+                <span class="propose-id">r-0247</span>
+                <span class="propose-spacer"></span>
+                <span class="propose-time">2 min ago</span>
+                <span class="badge warn"><span class="dot"></span>low confidence</span>
+              </div>
+
+              <div class="diff-block">
+                <div class="diff-line add">
+                  <span class="line-num">1</span><span class="sign">+</span>
+                  <span class="content">## Karpathy 主张 index.md 必须先于正文被读取</span>
+                </div>
+                <div class="diff-line add">
+                  <span class="line-num">2</span><span class="sign">+</span>
+                  <span class="content"></span>
+                </div>
+                <div class="diff-line add">
+                  <span class="line-num">3</span><span class="sign">+</span>
+                  <span class="content">这是 wiki 维护的硬约束之一。</span>
+                </div>
+              </div>
+
+              <div class="propose-meta">
+                <span class="meta-item">
+                  <span style="color: var(--text-tertiary);">conf</span>
+                  <strong style="color: var(--warn);">0.55</strong>
+                </span>
+                <span class="meta-item">
+                  <span style="color: var(--text-tertiary);">sources</span>
+                  <strong>1</strong>
+                </span>
+                <span class="meta-item">
+                  <span style="color: var(--text-tertiary);">quote_hash</span>
+                  <code>3f8b91a0</code>
+                </span>
+                <span class="meta-item warn">
+                  <svg class="icon icon-sm"><use href="#i-alert-triangle"/></svg>
+                  推断陈述
+                </span>
+              </div>
+
+              <div class="propose-actions">
+                <button class="btn btn-ghost btn-sm">View source</button>
+                <button class="btn btn-danger btn-sm"><svg class="icon icon-sm"><use href="#i-x"/></svg>Reject</button>
+                <button class="btn btn-primary btn-sm"><svg class="icon icon-sm"><use href="#i-check"/></svg>Accept</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bundle 2 — collapsed -->
+          <div class="bundle-group">
+            <div class="bundle-header">
+              <svg class="icon bundle-chevron"><use href="#i-chevron-right"/></svg>
+              <svg class="icon" style="color: var(--text-secondary);"><use href="#i-list-checks"/></svg>
+              <div class="bundle-title">Lint fix: broken links in concepts/</div>
+              <span class="bundle-meta">b-0041 · 4 proposes</span>
+              <span class="bundle-spacer"></span>
+              <span class="badge"><span class="dot"></span>normal</span>
+              <span class="agent-badge"><span class="agent-avatar av-codex">X</span>codex</span>
+              <button class="btn btn-sm">Inspect</button>
+            </div>
+          </div>
+
+          <!-- Bundle 3 — collapsed -->
+          <div class="bundle-group">
+            <div class="bundle-header">
+              <svg class="icon bundle-chevron"><use href="#i-chevron-right"/></svg>
+              <svg class="icon" style="color: var(--text-secondary);"><use href="#i-inbox"/></svg>
+              <div class="bundle-title">Query sediment: "RAG vs LLM Wiki"</div>
+              <span class="bundle-meta">b-0040 · 2 proposes</span>
+              <span class="bundle-spacer"></span>
+              <span class="badge"><span class="dot"></span>low</span>
+              <span class="agent-badge"><span class="agent-avatar av-cursor">U</span>cursor</span>
+              <button class="btn btn-sm">Inspect</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right inspector -->
+        <aside class="inspector">
+          <h3>Bundle Inspector</h3>
+
+          <div class="inspector-section">
+            <div class="sec-label">Bundle</div>
+            <div class="mono" style="font-size: 13px; color: var(--text); margin-bottom: 4px;">
+              b-0042
+            </div>
+            <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 6px;">
+              Ingest: Karpathy LLM Wiki gist
+            </div>
+            <div style="font-size: 11px; color: var(--text-tertiary); display: flex; align-items: center; gap: 6px;">
+              by <span class="agent-badge" style="padding: 1px 8px 1px 2px;"><span class="agent-avatar av-claude" style="width: 14px; height: 14px; font-size: 8px;">C</span>claude</span>
+              · 2 min ago
+            </div>
+          </div>
+
+          <div class="inspector-section">
+            <div class="sec-label">Dependency Graph</div>
+            <div class="dep-graph">
+              <div class="dep-node root">r-0245 (claim)</div>
+              <div class="dep-arrow">↳ refers to</div>
+              <div class="dep-node">r-0246 (entity)</div>
+              <div class="dep-arrow">↳ source-anchor in</div>
+              <div class="dep-node">r-0249 (source)</div>
+              <div class="dep-arrow" style="opacity: 0.5;">···</div>
+            </div>
+          </div>
+
+          <div class="inspector-section">
+            <div class="sec-label">Impact analysis</div>
+            <ul class="impact-list">
+              <li><span class="impact-num num">+3</span> new wiki pages</li>
+              <li><span class="impact-num num">~2</span> pages modified</li>
+              <li><span class="impact-num num">+5</span> new backlinks</li>
+              <li><span class="impact-num num">0</span> conflicts with existing</li>
+              <li style="color: var(--success);">
+                <span class="impact-num ok">
+                  <svg class="icon icon-sm"><use href="#i-check"/></svg>
+                </span>
+                all sources verified
+              </li>
+            </ul>
+          </div>
+
+          <div class="inspector-section">
+            <div class="sec-label">Source</div>
+            <div class="source-mini">
+              raw/inbox/karpathy-llm-wiki.md
+              <div class="source-meta">sha256 7f3a91e4… · ingested 5 min ago</div>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 8px; margin-top: var(--space-5);">
+            <button class="btn" style="flex: 1;">Reject all</button>
+            <button class="btn btn-primary" style="flex: 1;">Accept all</button>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         Scene 3: Wiki
+         ==================================================================== -->
+    <section class="scene" id="wiki">
+      <div class="wiki-layout">
+
+        <!-- File tree -->
+        <aside class="wiki-tree">
+          <div class="tree-section">Vault</div>
+          <div class="tree-item dir">
+            <svg class="icon icon-sm"><use href="#i-chevron-down"/></svg>
+            <svg class="icon icon-sm"><use href="#i-folder"/></svg>
+            <span>raw/</span>
+          </div>
+          <div class="tree-children">
+            <div class="tree-item">
+              <svg class="icon icon-sm" style="visibility: hidden;"><use href="#i-chevron-right"/></svg>
+              <svg class="icon icon-sm"><use href="#i-file"/></svg>
+              karpathy-llm-wiki.md
+            </div>
+            <div class="tree-item">
+              <svg class="icon icon-sm" style="visibility: hidden;"><use href="#i-chevron-right"/></svg>
+              <svg class="icon icon-sm"><use href="#i-file"/></svg>
+              mindstudio-blog.html
+            </div>
+          </div>
+          <div class="tree-item dir">
+            <svg class="icon icon-sm"><use href="#i-chevron-down"/></svg>
+            <svg class="icon icon-sm"><use href="#i-folder"/></svg>
+            <span>wiki/</span>
+          </div>
+          <div class="tree-children">
+            <div class="tree-item dir">
+              <svg class="icon icon-sm"><use href="#i-chevron-down"/></svg>
+              <svg class="icon icon-sm"><use href="#i-folder"/></svg>
+              <span>claims/</span>
+            </div>
+            <div class="tree-children">
+              <div class="tree-item claim active">
+                <svg class="icon icon-sm" style="visibility: hidden;"><use href="#i-chevron-right"/></svg>
+                <svg class="icon icon-sm"><use href="#i-quote"/></svg>
+                wiki-is-compounding
+              </div>
+              <div class="tree-item claim">
+                <svg class="icon icon-sm" style="visibility: hidden;"><use href="#i-chevron-right"/></svg>
+                <svg class="icon icon-sm"><use href="#i-quote"/></svg>
+                index-md-read-first
+              </div>
+              <div class="tree-item claim">
+                <svg class="icon icon-sm" style="visibility: hidden;"><use href="#i-chevron-right"/></svg>
+                <svg class="icon icon-sm"><use href="#i-quote"/></svg>
+                claims-are-citizens
+              </div>
+              <div class="tree-item claim">
+                <svg class="icon icon-sm" style="visibility: hidden;"><use href="#i-chevron-right"/></svg>
+                <svg class="icon icon-sm"><use href="#i-quote"/></svg>
+                log-md-append-only
+              </div>
+            </div>
+            <div class="tree-item dir">
+              <svg class="icon icon-sm"><use href="#i-chevron-down"/></svg>
+              <svg class="icon icon-sm"><use href="#i-folder"/></svg>
+              <span>entities/</span>
+            </div>
+            <div class="tree-children">
+              <div class="tree-item entity">
+                <svg class="icon icon-sm" style="visibility: hidden;"><use href="#i-chevron-right"/></svg>
+                <svg class="icon icon-sm"><use href="#i-circle-dot"/></svg>
+                karpathy
+              </div>
+              <div class="tree-item entity">
+                <svg class="icon icon-sm" style="visibility: hidden;"><use href="#i-chevron-right"/></svg>
+                <svg class="icon icon-sm"><use href="#i-circle-dot"/></svg>
+                llm-wiki
+              </div>
+              <div class="tree-item entity">
+                <svg class="icon icon-sm" style="visibility: hidden;"><use href="#i-chevron-right"/></svg>
+                <svg class="icon icon-sm"><use href="#i-circle-dot"/></svg>
+                rag
+              </div>
+            </div>
+            <div class="tree-item dir">
+              <svg class="icon icon-sm"><use href="#i-chevron-down"/></svg>
+              <svg class="icon icon-sm"><use href="#i-folder"/></svg>
+              <span>concepts/</span>
+            </div>
+            <div class="tree-children">
+              <div class="tree-item concept">
+                <svg class="icon icon-sm" style="visibility: hidden;"><use href="#i-chevron-right"/></svg>
+                <svg class="icon icon-sm"><use href="#i-compass"/></svg>
+                compounding-artifact
+              </div>
+              <div class="tree-item concept">
+                <svg class="icon icon-sm" style="visibility: hidden;"><use href="#i-chevron-right"/></svg>
+                <svg class="icon icon-sm"><use href="#i-compass"/></svg>
+                source-of-truth
+              </div>
+            </div>
+            <div class="tree-item">
+              <svg class="icon icon-sm" style="visibility: hidden;"><use href="#i-chevron-right"/></svg>
+              <svg class="icon icon-sm"><use href="#i-file-text"/></svg>
+              index.md
+            </div>
+            <div class="tree-item">
+              <svg class="icon icon-sm" style="visibility: hidden;"><use href="#i-chevron-right"/></svg>
+              <svg class="icon icon-sm"><use href="#i-file-text"/></svg>
+              log.md
+            </div>
+          </div>
+          <div class="tree-item dir">
+            <svg class="icon icon-sm"><use href="#i-chevron-down"/></svg>
+            <svg class="icon icon-sm"><use href="#i-folder"/></svg>
+            <span>schema/</span>
+          </div>
+          <div class="tree-children">
+            <div class="tree-item">
+              <svg class="icon icon-sm" style="visibility: hidden;"><use href="#i-chevron-right"/></svg>
+              <svg class="icon icon-sm"><use href="#i-file-text"/></svg>
+              AGENTS.md
+            </div>
+            <div class="tree-item">
+              <svg class="icon icon-sm" style="visibility: hidden;"><use href="#i-chevron-right"/></svg>
+              <svg class="icon icon-sm"><use href="#i-file-text"/></svg>
+              CLAUDE.md
+            </div>
+          </div>
+        </aside>
+
+        <!-- Main content -->
+        <article class="wiki-content">
+          <div class="wiki-breadcrumb">
+            <span>wiki</span><span class="sep">/</span>
+            <span>claims</span><span class="sep">/</span>
+            <span class="current">wiki-is-compounding.md</span>
+          </div>
+
+          <div class="wiki-title-row">
+            <h1>Wiki 是一个 compounding artifact</h1>
+            <span class="badge claim"><svg class="icon icon-sm"><use href="#i-quote"/></svg>claim</span>
+            <span class="badge success"><span class="dot"></span>supported</span>
+            <span class="badge num">conf 0.92</span>
+          </div>
+
+          <details class="wiki-frontmatter" open>
+            <summary>
+              <svg class="icon icon-sm"><use href="#i-chevron-right"/></svg>
+              <span>frontmatter</span>
+            </summary>
+            <div class="frontmatter-body">
+              <div class="frontmatter-line"><span class="k">id</span><span class="v">cl-2026-05-21-001</span></div>
+              <div class="frontmatter-line"><span class="k">type</span><span class="v">claim</span></div>
+              <div class="frontmatter-line"><span class="k">status</span><span class="v">supported</span></div>
+              <div class="frontmatter-line"><span class="k">confidence</span><span class="v">0.92</span></div>
+              <div class="frontmatter-line"><span class="k">schema_version</span><span class="v">1.0</span></div>
+              <div class="frontmatter-line"><span class="k">created_by</span><span class="v">claude-code @ 2026-05-21 10:14</span></div>
+              <div class="frontmatter-line"><span class="k">updated_by</span><span class="v">you @ 2026-05-21 10:18 (accepted r-0245)</span></div>
+              <div class="frontmatter-line"><span class="k">last_verified</span><span class="v">2026-05-21 10:18</span></div>
+              <div class="frontmatter-line"><span class="k">related</span><span class="v">[[karpathy]] [[llm-wiki]] [[compounding-artifact]]</span></div>
+              <div class="frontmatter-line"><span class="k">aliases</span><span class="v">["compounding wiki", "knowledge as artifact"]</span></div>
+            </div>
+          </details>
+
+          <div class="wiki-body">
+            <p>
+              <strong>Karpathy</strong> 在 LLM Wiki gist 中明确主张：wiki 是一个
+              <span class="wikilink concept">[[compounding-artifact]]</span>，
+              而不是临时缓存。其核心区别在于——每一次 ingest、每一次 query、每一次 lint，
+              都应该让 wiki 变得"更值钱"，而不是让高质量的对话答案消失在 chat history 里。
+            </p>
+            <p>
+              这与传统 <span class="wikilink">[[rag]]</span> 的"查询即丢失"模式形成鲜明对比。
+              在 RAG 中，每次检索都是无状态的，知识不会被沉淀；而在 LLM Wiki 中，
+              每个高质量 query 的答案可以回写为 <span class="wikilink claim">[[claims-are-citizens|新的 claim 页]]</span>，
+              从而让系统"越用越值钱"。
+            </p>
+          </div>
+
+          <div class="wiki-section-title">
+            <svg class="icon icon-sm"><use href="#i-archive"/></svg>
+            <span>Sources</span>
+            <span class="count num">2</span>
+          </div>
+
+          <div class="source-card">
+            <div class="source-head">
+              <span class="source-path">raw/inbox/karpathy-llm-wiki.md</span>
+              <span class="source-anchor">#section-1-philosophy</span>
+              <span class="badge success" style="margin-left: auto;"><svg class="icon icon-sm"><use href="#i-check"/></svg>verified</span>
+            </div>
+            <blockquote class="source-quote">
+              "every ingest, every query, every lint should make the wiki more valuable —
+              we should not let high-quality conversational answers disappear into the chat history."
+            </blockquote>
+            <div class="source-meta">
+              <span>quote_hash <span class="ok">a7f2e3c1</span></span>
+              <span>verified 2 min ago</span>
+              <span>span lines 14–19</span>
+            </div>
+          </div>
+
+          <div class="source-card">
+            <div class="source-head">
+              <span class="source-path">raw/inbox/mindstudio-blog.html</span>
+              <span class="source-anchor">#para-7</span>
+              <span class="badge warn" style="margin-left: auto;"><svg class="icon icon-sm"><use href="#i-alert-triangle"/></svg>DRIFT</span>
+            </div>
+            <blockquote class="source-quote drift">
+              "The LLM Wiki pattern treats knowledge as a compounding artifact rather than ephemeral
+              context, which is the fundamental shift from RAG-based architectures."
+            </blockquote>
+            <div class="source-meta">
+              <span>quote_hash <span class="warn">e1b8…</span> ≠ stored <span class="warn">d4f9…</span></span>
+              <span>modified 6h ago</span>
+              <button class="btn btn-sm btn-ghost" style="padding: 0 8px; height: 22px; font-size: 11px;">Re-verify</button>
+            </div>
+          </div>
+
+          <div class="wiki-section-title">
+            <svg class="icon icon-sm"><use href="#i-history"/></svg>
+            <span>History</span>
+            <span class="count num">3 commits</span>
+          </div>
+
+          <div class="history-list">
+            <div class="history-item">
+              <span class="history-sha">e4a7c92</span>
+              <span class="history-msg">accept r-0245: initial claim from karpathy gist ingest</span>
+              <span class="history-when">2 min ago · you</span>
+            </div>
+            <div class="history-item">
+              <span class="history-sha">b1f3008</span>
+              <span class="history-msg">refine wording, add concept link [[compounding-artifact]]</span>
+              <span class="history-when">8 min ago · claude-code</span>
+            </div>
+            <div class="history-item">
+              <span class="history-sha">a92d445</span>
+              <span class="history-msg">initial draft from raw/inbox/karpathy-llm-wiki.md</span>
+              <span class="history-when">14 min ago · claude-code</span>
+            </div>
+          </div>
+        </article>
+
+        <!-- Right sidebar -->
+        <aside class="wiki-side">
+          <div class="side-section">
+            <div class="side-label">
+              <span>Backlinks</span>
+              <span class="count">(3)</span>
+            </div>
+            <div class="backref-item">
+              <svg class="icon icon-sm entity"><use href="#i-circle-dot"/></svg>
+              entities/karpathy.md
+            </div>
+            <div class="backref-item">
+              <svg class="icon icon-sm concept"><use href="#i-compass"/></svg>
+              concepts/compounding-artifact.md
+            </div>
+            <div class="backref-item">
+              <svg class="icon icon-sm"><use href="#i-file-text"/></svg>
+              index.md (top claims)
+            </div>
+          </div>
+
+          <div class="side-section">
+            <div class="side-label"><span>Related</span></div>
+            <span class="related-tag entity">karpathy</span>
+            <span class="related-tag entity">llm-wiki</span>
+            <span class="related-tag concept">compounding-artifact</span>
+            <span class="related-tag concept">source-of-truth</span>
+            <span class="related-tag claim">index-md-read-first</span>
+          </div>
+
+          <div class="side-section">
+            <div class="side-label"><span>Actions</span></div>
+            <div class="side-action-list">
+              <button class="btn btn-sm">
+                <svg class="icon icon-sm"><use href="#i-history"/></svg>
+                View git history
+              </button>
+              <button class="btn btn-sm">
+                <svg class="icon icon-sm"><use href="#i-list-checks"/></svg>
+                Lint this page
+              </button>
+              <button class="btn btn-sm">
+                <svg class="icon icon-sm"><use href="#i-external"/></svg>
+                Show in Obsidian
+              </button>
+              <button class="btn btn-sm btn-danger">
+                <svg class="icon icon-sm"><use href="#i-undo"/></svg>
+                Revert last commit
+              </button>
+            </div>
+          </div>
+
+          <div class="side-section">
+            <div class="side-label"><span>Provenance</span></div>
+            <div class="provenance-note">
+              <strong>depth = 1</strong> <span class="ok">✓</span><br>
+              此 claim 直接挂在 raw/ 末端，未经过任何 wiki 内部引用链强化。符合 anti-羊群效应规则。
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         Scene 4: Ingest
+         ==================================================================== -->
+    <section class="scene" id="ingest">
+      <div class="page-header">
+        <div class="page-header-row">
+          <div>
+            <h1>Ingest</h1>
+            <div class="subtitle">
+              <span class="num">3 active jobs</span>
+              <span style="color: var(--text-disabled);">·</span>
+              <span class="num">12 in raw/inbox/</span>
+              <span style="color: var(--text-disabled);">·</span>
+              <span style="display: inline-flex; align-items: center; gap: 5px;">
+                <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--success);"></span>
+                daemon running
+              </span>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn">
+              <svg class="icon icon-sm"><use href="#i-folder"/></svg>
+              Open inbox
+            </button>
+            <button class="btn btn-primary">
+              <svg class="icon icon-sm"><use href="#i-plus"/></svg>
+              Drop files
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pipeline timeline -->
+      <div class="ingest-timeline">
+        <div class="stage done">
+          <div class="stage-num">stage 1</div>
+          <div class="stage-name">
+            <svg class="icon icon-sm"><use href="#i-check"/></svg>
+            Deliver
+          </div>
+          <div class="stage-meta">2.1 MB · sha256 ok · 0.4s</div>
+        </div>
+        <div class="stage done">
+          <div class="stage-num">stage 2</div>
+          <div class="stage-name">
+            <svg class="icon icon-sm"><use href="#i-check"/></svg>
+            Parse
+          </div>
+          <div class="stage-meta">3,847 tokens · 14 sections · 1.2s</div>
+        </div>
+        <div class="stage active">
+          <div class="stage-num">stage 3</div>
+          <div class="stage-name">
+            <span class="pulse-dot"></span>
+            Extract claims
+          </div>
+          <div class="stage-meta">claude-code · 4 / 8 · 6.3s</div>
+        </div>
+        <div class="stage pending">
+          <div class="stage-num">stage 4</div>
+          <div class="stage-name">Propose</div>
+          <div class="stage-meta">waiting…</div>
+        </div>
+        <div class="stage pending">
+          <div class="stage-num">stage 5</div>
+          <div class="stage-name">Review queue</div>
+          <div class="stage-meta">waiting…</div>
+        </div>
+        <div class="stage-action">
+          <button class="icon-btn" title="Pause job">
+            <svg class="icon"><use href="#i-pause"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- File list + detail -->
+      <div class="ingest-grid">
+        <div class="card">
+          <div class="card-header">
+            <h3>raw/inbox/</h3>
+            <span class="card-meta">12 files</span>
+          </div>
+          <div class="file-list">
+            <div class="file-row">
+              <svg class="icon icon-sm file-icon"><use href="#i-file"/></svg>
+              <span class="file-name">
+                mindstudio-blog.html
+                <span class="file-meta">142 KB · done · 23 min ago</span>
+              </span>
+              <span class="badge success"><span class="dot"></span>done</span>
+            </div>
+            <div class="file-row selected">
+              <svg class="icon icon-sm file-icon"><use href="#i-file"/></svg>
+              <span class="file-name">
+                karpathy-llm-wiki.md
+                <span class="file-meta">28 KB · extracting… · 6.3s</span>
+              </span>
+              <span class="badge accent"><span class="dot"></span>parsing</span>
+            </div>
+            <div class="file-row">
+              <svg class="icon icon-sm file-icon"><use href="#i-file"/></svg>
+              <span class="file-name">
+                rag-vs-wiki-twitter-thread.md
+                <span class="file-meta">8 KB · queued</span>
+              </span>
+              <span class="badge">queued</span>
+            </div>
+            <div class="file-row">
+              <svg class="icon icon-sm file-icon"><use href="#i-file"/></svg>
+              <span class="file-name">
+                attention-is-all-you-need.pdf
+                <span class="file-meta">1.4 MB · OCR failed · 12 min ago</span>
+              </span>
+              <span class="badge error"><span class="dot"></span>error</span>
+            </div>
+            <div class="file-row">
+              <svg class="icon icon-sm file-icon"><use href="#i-image"/></svg>
+              <span class="file-name">
+                architecture-diagram.png
+                <span class="file-meta">512 KB · OCR queued</span>
+              </span>
+              <span class="badge">queued</span>
+            </div>
+            <div class="file-row">
+              <svg class="icon icon-sm file-icon"><use href="#i-mic"/></svg>
+              <span class="file-name">
+                podcast-karpathy-interview.mp3
+                <span class="file-meta">48 MB · transcribe queued</span>
+              </span>
+              <span class="badge">queued</span>
+            </div>
+            <div class="file-row">
+              <svg class="icon icon-sm file-icon"><use href="#i-file"/></svg>
+              <span class="file-name">
+                claude-code-mcp-docs.md
+                <span class="file-meta">22 KB · done · 2h ago</span>
+              </span>
+              <span class="badge success"><span class="dot"></span>done</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card file-detail">
+          <div class="card-header">
+            <h3>karpathy-llm-wiki.md</h3>
+            <span class="card-meta">selected · live extraction</span>
+          </div>
+
+          <div class="detail-section">
+            <div class="detail-label">File metadata</div>
+            <div class="detail-meta">
+              <span class="k">sha256</span><span class="v">7f3a91e4d8c2…</span>
+              <span class="k">size</span><span class="v">28,432 bytes</span>
+              <span class="k">mtime</span><span class="v">2026-05-21 10:08:42</span>
+              <span class="k">parser</span><span class="v">markdown · commonmark</span>
+              <span class="k">tokens</span><span class="v">3,847 (GPT-4 tok)</span>
+              <span class="k">sections</span><span class="v">14</span>
+            </div>
+          </div>
+
+          <div class="detail-section">
+            <div class="detail-label">
+              Extracted claims · <span style="font-weight: 400; color: var(--text-secondary); letter-spacing: 0; text-transform: none;">4 of ~8 (live)</span>
+            </div>
+
+            <div class="extracted-claim">
+              <div class="ec-head">
+                <span class="badge claim">claim</span>
+                <span class="ec-id">cl-2026-05-21-001 → r-0245</span>
+                <span style="flex: 1;"></span>
+                <span class="ec-conf">conf 0.85</span>
+              </div>
+              <div class="ec-text">
+                Wiki 是一个 compounding artifact，每次 ingest/query/lint 都让它更值钱。
+              </div>
+            </div>
+
+            <div class="extracted-claim">
+              <div class="ec-head">
+                <span class="badge claim">claim</span>
+                <span class="ec-id">cl-2026-05-21-002 → r-0247</span>
+                <span style="flex: 1;"></span>
+                <span class="ec-conf warn">conf 0.55</span>
+              </div>
+              <div class="ec-text">
+                index.md 必须先于正文页面被读取（agent 维护约束）。
+              </div>
+            </div>
+
+            <div class="extracted-claim">
+              <div class="ec-head">
+                <span class="badge entity">entity</span>
+                <span class="ec-id">en-2026-05-21-001 → r-0246</span>
+                <span style="flex: 1;"></span>
+                <span class="ec-conf">edit existing</span>
+              </div>
+              <div class="ec-text">
+                Andrej Karpathy — 补充 alias <code>@karpathy</code> 与新 claim 链接。
+              </div>
+            </div>
+
+            <div class="extracted-claim">
+              <div class="ec-head">
+                <span class="badge concept">concept</span>
+                <span class="ec-id">co-2026-05-21-001 → r-0248</span>
+                <span style="flex: 1;"></span>
+                <span class="ec-conf">conf 0.90</span>
+              </div>
+              <div class="ec-text">
+                Compounding Artifact — 新概念页（对比 ephemeral cache）。
+              </div>
+            </div>
+
+            <div class="extracting-more">
+              <span class="pulse-dot" style="width: 6px; height: 6px;"></span>
+              extracting more… (estimated 4 remaining)
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Worker pool -->
+      <div class="card">
+        <div class="card-header">
+          <h3>Worker Pool</h3>
+          <span class="card-meta">4 agents · 1 busy · 3 idle</span>
+        </div>
+        <div class="worker-pool">
+          <div class="worker-row busy">
+            <div class="w-avatar av-claude">C</div>
+            <div class="w-name">claude-code</div>
+            <div class="w-status"><span class="dot"></span>busy</div>
+            <div class="w-job">extracting cl from karpathy-llm-wiki.md</div>
+            <div class="w-queue">q: 0</div>
+          </div>
+          <div class="worker-row idle">
+            <div class="w-avatar av-codex">X</div>
+            <div class="w-name">codex-cli</div>
+            <div class="w-status"><span class="dot"></span>idle</div>
+            <div class="w-job">last: lint concepts/ (14 min ago)</div>
+            <div class="w-queue">q: 0</div>
+          </div>
+          <div class="worker-row idle">
+            <div class="w-avatar av-hermes">H</div>
+            <div class="w-name">hermes</div>
+            <div class="w-status"><span class="dot"></span>idle</div>
+            <div class="w-job">last: ingest mindstudio (23 min ago)</div>
+            <div class="w-queue">q: 1</div>
+          </div>
+          <div class="worker-row idle">
+            <div class="w-avatar av-cursor">U</div>
+            <div class="w-name">cursor</div>
+            <div class="w-status"><span class="dot"></span>idle</div>
+            <div class="w-job">last: wiki query (45 min ago)</div>
+            <div class="w-queue">q: 0</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    // ===== Scene switching =====
+    const navItems = document.querySelectorAll('.nav-item[data-scene]');
+    const scenes = document.querySelectorAll('.scene');
+    navItems.forEach(item => {
+      item.addEventListener('click', e => {
+        e.preventDefault();
+        const target = item.dataset.scene;
+        scenes.forEach(s => s.classList.toggle('active', s.id === target));
+        navItems.forEach(n => n.classList.toggle('active', n === item));
+        document.querySelector('.main').scrollTop = 0;
+      });
+    });
+
+    // ===== Theme toggle =====
+    const themeToggle = document.getElementById('themeToggle');
+    const themeIcon = document.getElementById('themeIcon');
+    const themeLabel = document.getElementById('themeLabel');
+    themeToggle.addEventListener('click', () => {
+      const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = next;
+      themeIcon.innerHTML = `<use href="${next === 'dark' ? '#i-sun' : '#i-moon'}"/>`;
+      themeLabel.textContent = next === 'dark' ? 'Light' : 'Dark';
+    });
+
+    // ===== File row click in ingest scene =====
+    document.querySelectorAll('.file-row').forEach(row => {
+      row.addEventListener('click', () => {
+        document.querySelectorAll('.file-row').forEach(r => r.classList.remove('selected'));
+        row.classList.add('selected');
+      });
+    });
+
+    // ===== Tree item click in wiki scene =====
+    document.querySelectorAll('.wiki-tree .tree-item:not(.dir)').forEach(item => {
+      item.addEventListener('click', () => {
+        document.querySelectorAll('.wiki-tree .tree-item').forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+      });
+    });
+
+    // ===== Propose card click (review scene) =====
+    document.querySelectorAll('.propose-card').forEach(card => {
+      card.addEventListener('click', e => {
+        if (e.target.closest('button')) return;
+        document.querySelectorAll('.propose-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+      });
+    });
+
+    // ===== Diff collapsed expand =====
+    document.querySelectorAll('.diff-collapsed').forEach(el => {
+      el.addEventListener('click', () => {
+        el.textContent = '(展开仅作示意，原型未实现真实 diff 渲染)';
+        el.style.color = 'var(--text-tertiary)';
+        el.style.cursor = 'default';
+      });
+    });
+  </script>
+</body>
+</html>
