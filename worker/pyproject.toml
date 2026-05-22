@@ -1,0 +1,10 @@
+[project]
+name = "wikimind-worker"
+version = "0.0.1"
+description = "WikiMind ingest worker — parse / OCR / transcribe"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
