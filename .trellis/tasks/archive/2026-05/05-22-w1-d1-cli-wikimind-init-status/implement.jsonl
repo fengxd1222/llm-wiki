@@ -1,0 +1,7 @@
+{"file": "spec-v2/docs/roadmap-30d.md", "reason": "D1 任务范围与验收边界"}
+{"file": "spec-v2/docs/architecture.md", "reason": "vault 三层目录结构定义（§4.1）"}
+{"file": "spec-v2/docs/engineering-decisions.md", "reason": "Go 模块划分（§4）与技术选型（cobra / git exec / go:embed）"}
+{"file": "spec-v2/docs/cross-platform.md", "reason": "路径约定与 init 自动 git init 行为（§7.1）"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "错误处理规范"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "日志规范"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "项目目录结构规范"}
