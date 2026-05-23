@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "校验数据库访问是否合规"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量基准"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "校验错误处理是否合规"}
+{"file": "spec-v2/docs/architecture.md", "reason": "校验 sources 表 schema 与 §4.2 一致"}

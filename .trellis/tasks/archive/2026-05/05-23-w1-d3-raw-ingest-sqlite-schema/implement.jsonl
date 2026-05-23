@@ -1,0 +1,7 @@
+{"file": "spec-v2/docs/roadmap-30d.md", "reason": "D3 任务范围与验收边界"}
+{"file": "spec-v2/docs/architecture.md", "reason": "§3.1 ingest pipeline + §4.2 sources 表 schema + §6 索引模型"}
+{"file": "spec-v2/docs/engineering-decisions.md", "reason": "§3 goose + go:embed migration + §4.3 SQLite 驱动 + §4.1 模块划分"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "数据库访问规范（事务、连接、错误处理）"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "错误处理规范（sentinel + wrap）"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "日志规范"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量基准"}
