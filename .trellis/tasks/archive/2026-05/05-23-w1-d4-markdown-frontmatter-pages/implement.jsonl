@@ -1,0 +1,8 @@
+{"file": "spec-v2/docs/roadmap-30d.md", "reason": "D4 任务范围与验收边界"}
+{"file": "spec-v2/docs/architecture.md", "reason": "§4.2 pages 表 schema + page_links / pages_fts 物化模式"}
+{"file": "spec-v2/docs/cjk-tokenizer.md", "reason": "pages_fts 必须用 trigram + 短查询 fallback 设计（影响 schema + 后续 D5）"}
+{"file": "spec-v2/docs/engineering-decisions.md", "reason": "§4.3 YAML 库（yaml.v3 / goccy）+ Go 模块划分（不新建 internal/page）"}
+{"file": "spec-v2/templates/page-schemas.md", "reason": "五类 page 的 frontmatter schema（解析对象语义）"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "数据库访问规范（事务 / trigger / 错误处理）"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "错误处理规范（sentinel + wrap）"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量基准"}

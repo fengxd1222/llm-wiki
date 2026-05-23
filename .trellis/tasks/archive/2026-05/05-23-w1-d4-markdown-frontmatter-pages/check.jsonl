@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量检查基准"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "校验错误处理合规"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "校验 DB / trigger 用法合规"}
+{"file": "spec-v2/docs/architecture.md", "reason": "校验 pages schema 与 §4.2 一致"}
+{"file": "spec-v2/docs/cjk-tokenizer.md", "reason": "校验 pages_fts tokenizer 是 trigram"}
