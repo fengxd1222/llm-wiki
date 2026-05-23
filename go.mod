@@ -5,7 +5,10 @@ go 1.26.3
 require (
 	github.com/BurntSushi/toml v1.4.0
 	github.com/modelcontextprotocol/go-sdk v1.6.1
+	github.com/pressly/goose/v3 v3.27.1
 	github.com/spf13/cobra v1.10.2
+	github.com/yuin/goldmark v1.8.2
+	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.50.1
 )
 
@@ -17,7 +20,6 @@ require (
 	github.com/mattn/go-isatty v0.0.21 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
-	github.com/pressly/goose/v3 v3.27.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect

@@ -112,3 +112,129 @@ func TestStubCommands(t *testing.T) {
 		}
 	}
 }
+
+func TestPageCommands(t *testing.T) {
+	tempDir := t.TempDir()
+	vaultRoot := filepath.Join(tempDir, "vault")
+	if _, err := vault.Init(vaultRoot); err != nil {
+		t.Fatalf("vault.Init: %v", err)
+	}
+
+	// Empty state: list should print friendly hint before reindex.
+	t.Chdir(vaultRoot)
+	var out bytes.Buffer
+	cmd := newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"page", "list"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("page list (empty) Execute(): %v\n%s", err, out.String())
+	}
+	if !strings.Contains(out.String(), "no pages indexed yet") {
+		t.Fatalf("empty list missing hint:\n%s", out.String())
+	}
+
+	// Seed a claim page + an entity page.
+	claimPath := filepath.Join(vaultRoot, "wiki", "claims", "wiki-is-compounding.md")
+	if err := os.MkdirAll(filepath.Dir(claimPath), 0o755); err != nil {
+		t.Fatalf("mkdir claims: %v", err)
+	}
+	claimBody := `---
+id: cl-2026-05-21-001
+type: claim
+title: "Wiki 是一个 compounding artifact"
+schema_version: "1.0"
+confidence: 0.92
+status: supported
+---
+
+# Wiki is compounding
+
+[[karpathy]]
+`
+	if err := os.WriteFile(claimPath, []byte(claimBody), 0o644); err != nil {
+		t.Fatalf("seed claim: %v", err)
+	}
+	entityPath := filepath.Join(vaultRoot, "wiki", "entities", "karpathy.md")
+	if err := os.MkdirAll(filepath.Dir(entityPath), 0o755); err != nil {
+		t.Fatalf("mkdir entities: %v", err)
+	}
+	entityBody := `---
+id: en-2026-05-21-001
+type: entity
+title: "Andrej Karpathy"
+schema_version: "1.0"
+---
+
+# Karpathy
+`
+	if err := os.WriteFile(entityPath, []byte(entityBody), 0o644); err != nil {
+		t.Fatalf("seed entity: %v", err)
+	}
+
+	// reindex
+	out.Reset()
+	cmd = newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"page", "reindex"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("page reindex Execute(): %v\n%s", err, out.String())
+	}
+	if !strings.Contains(out.String(), "indexed ") || !strings.Contains(out.String(), " pages") {
+		t.Fatalf("reindex output missing 'indexed N pages':\n%s", out.String())
+	}
+
+	// list after reindex must contain both ids.
+	out.Reset()
+	cmd = newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"page", "list"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("page list: %v\n%s", err, out.String())
+	}
+	listOut := out.String()
+	for _, want := range []string{"cl-2026-05-21-001", "en-2026-05-21-001", "## claim", "## entity"} {
+		if !strings.Contains(listOut, want) {
+			t.Fatalf("page list missing %q:\n%s", want, listOut)
+		}
+	}
+
+	// list --type entity must drop the claim.
+	out.Reset()
+	cmd = newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"page", "list", "--type", "entity"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("page list --type: %v\n%s", err, out.String())
+	}
+	filtered := out.String()
+	if !strings.Contains(filtered, "en-2026-05-21-001") {
+		t.Fatalf("filtered list missing entity:\n%s", filtered)
+	}
+	if strings.Contains(filtered, "cl-2026-05-21-001") {
+		t.Fatalf("filtered list leaked claim:\n%s", filtered)
+	}
+
+	// show by id
+	out.Reset()
+	cmd = newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"page", "show", "cl-2026-05-21-001"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("page show: %v\n%s", err, out.String())
+	}
+	showOut := out.String()
+	for _, want := range []string{
+		"id: cl-2026-05-21-001",
+		"type: claim",
+		"title: Wiki 是一个 compounding artifact",
+		"schema_version: 1.0",
+		"# Wiki is compounding",
+	} {
+		if !strings.Contains(showOut, want) {
+			t.Fatalf("page show missing %q:\n%s", want, showOut)
+		}
+	}
+
+	// show on missing id → error.
+	out.Reset()
+	cmd = newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"page", "show", "no-such-id"})
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("page show missing id should error, got output:\n%s", out.String())
+	}
+}
