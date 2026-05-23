@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量检查基准"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "校验错误处理是否合规"}
+{"file": "spec-v2/docs/cross-platform.md", "reason": "校验路径处理是否符合 §1 / §7"}
+{"file": "spec-v2/docs/architecture.md", "reason": "校验 config 与 §4.1 一致"}

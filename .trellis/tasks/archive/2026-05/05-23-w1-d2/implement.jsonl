@@ -1,0 +1,7 @@
+{"file": "spec-v2/docs/roadmap-30d.md", "reason": "D2 任务范围与验收边界"}
+{"file": "spec-v2/docs/cross-platform.md", "reason": "§1 文件名约定 / §7 路径规范化算法 / §3.5 长路径 / §1.3 lint 规则"}
+{"file": "spec-v2/docs/architecture.md", "reason": "§4.1 vault 目录结构与 .wikimind/config.toml 字段"}
+{"file": "spec-v2/docs/engineering-decisions.md", "reason": "§4.1 模块划分（不新建 internal/config，扩展 internal/vault）"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "错误处理规范（sentinel error / fmt.Errorf wrap）"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量基准"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "项目目录规范"}
