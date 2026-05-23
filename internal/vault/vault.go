@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -80,7 +79,7 @@ func ReadStatus(start string) (*Status, error) {
 	if err != nil {
 		return nil, err
 	}
-	version, err := readSchemaVersion(filepath.Join(root, ".wikimind", "config.toml"))
+	version, err := readSchemaVersion(root)
 	if err != nil {
 		return nil, err
 	}
@@ -180,19 +179,6 @@ func createDirectories(root string) error {
 	return nil
 }
 
-func writeConfig(root string, createdAt time.Time) error {
-	body := strings.Join([]string{
-		"vault_root = " + strconv.Quote(root),
-		"schema_version = " + strconv.Quote(schema.Version),
-		"created_at = " + strconv.Quote(createdAt.Format(time.RFC3339)),
-		"",
-	}, "\n")
-	if err := os.WriteFile(filepath.Join(root, ".wikimind", "config.toml"), []byte(body), 0o644); err != nil {
-		return fmt.Errorf("write .wikimind/config.toml: %w", err)
-	}
-	return nil
-}
-
 func writeInitialWikiFiles(root string) error {
 	files := map[string]string{
 		"wiki/index.md": "# WikiMind Index\n\nThis vault is ready for source ingestion.\n",
@@ -263,25 +249,6 @@ func runGit(root string, args ...string) (string, error) {
 		return stdout.String(), errors.New(msg)
 	}
 	return stdout.String(), nil
-}
-
-func readSchemaVersion(configPath string) (string, error) {
-	body, err := os.ReadFile(configPath)
-	if err != nil {
-		return "", fmt.Errorf("read config: %w", err)
-	}
-	for _, line := range strings.Split(string(body), "\n") {
-		key, value, ok := strings.Cut(line, "=")
-		if !ok || strings.TrimSpace(key) != "schema_version" {
-			continue
-		}
-		unquoted, err := strconv.Unquote(strings.TrimSpace(value))
-		if err != nil {
-			return "", fmt.Errorf("parse schema_version: %w", err)
-		}
-		return unquoted, nil
-	}
-	return "", errors.New("config missing schema_version")
 }
 
 func countRegularFiles(root string) (int, error) {

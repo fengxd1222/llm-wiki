@@ -3,6 +3,7 @@ module github.com/fengxd1222/llm-wiki
 go 1.26.3
 
 require (
+	github.com/BurntSushi/toml v1.4.0
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/spf13/cobra v1.10.2
 	modernc.org/sqlite v1.50.1

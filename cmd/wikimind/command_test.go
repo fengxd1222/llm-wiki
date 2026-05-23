@@ -34,6 +34,7 @@ func TestInitAndStatusCommands(t *testing.T) {
 		"wiki_pages: 2",
 		"claims: 0",
 		"git_status: dirty",
+		"config: ok",
 		"health: ok",
 	} {
 		if !strings.Contains(got, want) {

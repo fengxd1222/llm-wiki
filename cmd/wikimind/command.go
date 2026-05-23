@@ -96,5 +96,13 @@ func printStatus(w io.Writer, status *vault.Status) {
 	fmt.Fprintf(w, "claims: %d\n", status.Claims)
 	fmt.Fprintf(w, "git_branch: %s\n", gitBranch)
 	fmt.Fprintf(w, "git_status: %s\n", gitState)
+	fmt.Fprintf(w, "config: %s\n", configStatusLine(status.Root))
 	fmt.Fprintln(w, "health: ok")
+}
+
+func configStatusLine(root string) string {
+	if _, err := vault.LoadConfig(root); err != nil {
+		return "invalid: " + err.Error()
+	}
+	return "ok"
 }
