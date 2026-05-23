@@ -104,3 +104,37 @@ internal/index 提供 Open/Close/BeginTx + goose v3 //go:embed migrations 自动
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: Fix: Windows path cross-validate case sensitivity（D2 fix-up）
+
+**Date**: 2026-05-23
+**Task**: Fix: Windows path cross-validate case sensitivity（D2 fix-up）
+**Branch**: `main`
+
+### Summary
+
+修 D2 引入的 LoadConfig vault_root cross-validate 在 Windows NTFS 上失效（D2/D3 CI windows-2022 job 红）。两个 commit：(1) config.go pathsEqual helper Windows EqualFold；(2) config_test.go 把 strings.Replace 改成 toml round-trip 修测试构造在 Windows 反斜杠转义陷阱。新增 TestLoadConfigVaultRootCaseInsensitiveOnWindows（仅 Windows 跑）。CI 5 OS 矩阵 + python 这次真全绿。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `10d7800` | (see git log) |
+| `cf76ab4` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
