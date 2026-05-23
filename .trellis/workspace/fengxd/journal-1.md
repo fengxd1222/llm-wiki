@@ -38,3 +38,36 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 2: W1 D2: 配置加载与跨平台路径规范化
+
+**Date**: 2026-05-23
+**Task**: W1 D2: 配置加载与跨平台路径规范化
+**Branch**: `main`
+
+### Summary
+
+internal/vault 新增 config.go（BurntSushi/toml v1.4.0 + LoadConfig + cross-validate）与 path.go（NormalizePath / ResolveInVault / IsValidFilename），重构 D1 的 writeConfig / readSchemaVersion 用 toml；100+ 表驱动路径用例（ASCII / 中文 / 长路径 / 符号链接 / traversal / Windows 保留字）；wikimind status 输出 config 校验状态；go build/vet/test 全绿，CI 5 OS 矩阵通过。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d8a8958` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
