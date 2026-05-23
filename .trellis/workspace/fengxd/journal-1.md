@@ -138,3 +138,36 @@ internal/index 提供 Open/Close/BeginTx + goose v3 //go:embed migrations 自动
 ### Next Steps
 
 - None - task complete
+
+
+## Session 5: W1 D4: markdown frontmatter 解析 + pages 表 + page 命令组
+
+**Date**: 2026-05-23
+**Task**: W1 D4: markdown frontmatter 解析 + pages 表 + page 命令组
+**Branch**: `main`
+
+### Summary
+
+migrations/0002 加 pages 表（含 body 列供 trigger 读）+ pages_fts(trigram) + INSERT/UPDATE/DELETE 同步 triggers；internal/index/pages.go 提供 UpsertPage(ON CONFLICT UPDATE 幂等) / ListPages(按 type 过滤) / GetPageByID；internal/service/page.go 用 yaml.v3 解 frontmatter + goldmark 抽 heading + 正则抽 outbound [[id]]（支持 alias + dedup），ReindexWiki 跳 _ 前缀目录、无 frontmatter 文件 type='unknown' 保留；cmd/wikimind page 子命令组 reindex/list/show；依赖 yaml.v3 + goldmark；39 测试全 PASS，CI 5 OS + python 真全绿。Gotcha：goose CREATE TRIGGER 需 +goose StatementBegin/StatementEnd 包，注释避免含 +goose 关键字（keyword-greedy 解析陷阱）。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a9cd424` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
