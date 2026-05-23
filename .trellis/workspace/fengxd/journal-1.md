@@ -71,3 +71,36 @@ internal/vault 新增 config.go（BurntSushi/toml v1.4.0 + LoadConfig + cross-va
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: W1 D3: raw ingest + SQLite + goose migration 链路
+
+**Date**: 2026-05-23
+**Task**: W1 D3: raw ingest + SQLite + goose migration 链路
+**Branch**: `main`
+
+### Summary
+
+internal/index 提供 Open/Close/BeginTx + goose v3 //go:embed migrations 自动 up + index.db.bak 预备份；migrations/0001 升级为完整 sources 表（按 architecture §4.2 + sha256/status 双索引），migrations/ 移到 internal/index/（go:embed 父目录限制）；internal/service.IngestFile 复制到 raw/inbox + 流式 sha256 (O(1) 内存) + UPSERT sources + 同 sha256 去重 + 同名不同内容自动 -<sha8> 后缀（保持 raw 不可变）；wikimind ingest 真实实现；4 个 sentinel errors；20 测试（index 7 / service 10 / cmd 3）全 PASS，CI 5 OS 矩阵通过。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f7110ac` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

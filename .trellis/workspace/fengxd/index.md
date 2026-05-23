@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 2
+- **Total Sessions**: 3
 - **Last Active**: 2026-05-23
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~73 | Active |
+| `journal-1.md` | ~106 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 3 | 2026-05-23 | W1 D3: raw ingest + SQLite + goose migration 链路 | `f7110ac` | `main` |
 | 2 | 2026-05-23 | W1 D2: 配置加载与跨平台路径规范化 | `d8a8958` | `main` |
 | 1 | 2026-05-23 | W1 D1: CLI 框架与 wikimind init/status | `d1a163e` | `main` |
 <!-- @@@/auto:session-history -->
