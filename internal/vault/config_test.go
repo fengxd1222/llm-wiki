@@ -1,13 +1,42 @@
 package vault
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/BurntSushi/toml"
 )
+
+// rewriteVaultRoot rewrites the vault_root field inside the on-disk
+// config.toml semantically (decode -> mutate -> re-encode). Using a
+// plain string replacement does not work on Windows: filepath.Join
+// produces single-backslash paths (e.g. `C:\Users\runner\...`), while
+// the TOML serializer escapes them to `\\` inside string literals, so
+// strings.Replace never matches and the file is left untouched.
+func rewriteVaultRoot(t *testing.T, cfgPath, newRoot string) {
+	t.Helper()
+	body, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatalf("read cfg: %v", err)
+	}
+	var cfg Config
+	if _, err := toml.NewDecoder(bytes.NewReader(body)).Decode(&cfg); err != nil {
+		t.Fatalf("decode cfg: %v", err)
+	}
+	cfg.VaultRoot = newRoot
+	var buf bytes.Buffer
+	if err := toml.NewEncoder(&buf).Encode(cfg); err != nil {
+		t.Fatalf("encode cfg: %v", err)
+	}
+	if err := os.WriteFile(cfgPath, buf.Bytes(), 0o644); err != nil {
+		t.Fatalf("write cfg: %v", err)
+	}
+}
 
 // TestLoadConfigAfterInit confirms the canonical happy path: a vault created
 // by Init() must be readable back via LoadConfig().
@@ -137,14 +166,7 @@ func TestLoadConfigVaultRootMismatch(t *testing.T) {
 	}
 
 	cfgPath := filepath.Join(root, ".wikimind", "config.toml")
-	body, err := os.ReadFile(cfgPath)
-	if err != nil {
-		t.Fatalf("read cfg: %v", err)
-	}
-	patched := strings.Replace(string(body), root, other, 1)
-	if err := os.WriteFile(cfgPath, []byte(patched), 0o644); err != nil {
-		t.Fatalf("write cfg: %v", err)
-	}
+	rewriteVaultRoot(t, cfgPath, other)
 
 	_, err = LoadConfig(root)
 	if err == nil {
@@ -172,18 +194,11 @@ func TestLoadConfigVaultRootCaseInsensitiveOnWindows(t *testing.T) {
 	}
 
 	cfgPath := filepath.Join(root, ".wikimind", "config.toml")
-	body, err := os.ReadFile(cfgPath)
-	if err != nil {
-		t.Fatalf("read cfg: %v", err)
-	}
 	// Rewrite vault_root in the config to an all-uppercase variant of the
 	// real root. On NTFS this points at the same directory, so LoadConfig
 	// must accept it.
 	upper := strings.ToUpper(root)
-	patched := strings.Replace(string(body), root, upper, 1)
-	if err := os.WriteFile(cfgPath, []byte(patched), 0o644); err != nil {
-		t.Fatalf("write cfg: %v", err)
-	}
+	rewriteVaultRoot(t, cfgPath, upper)
 
 	if _, err := LoadConfig(root); err != nil {
 		t.Fatalf("LoadConfig() error = %v, want nil (case-insensitive match on Windows)", err)
