@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -81,10 +83,21 @@ func validateConfig(cfg *Config, vaultRoot string) error {
 	if err != nil {
 		actual = filepath.Clean(vaultRoot)
 	}
-	if declared != actual {
+	if !pathsEqual(declared, actual) {
 		return fmt.Errorf("%w: vault_root mismatch: config=%q actual=%q", ErrInvalidConfig, cfg.VaultRoot, vaultRoot)
 	}
 	return nil
+}
+
+// pathsEqual compares two filesystem paths with platform-appropriate case
+// sensitivity. Windows NTFS is case-insensitive by default; macOS APFS and
+// Linux ext4 may be either, but we keep strict equality there to match D2
+// behavior and avoid false positives on case-sensitive filesystems.
+func pathsEqual(a, b string) bool {
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
 }
 
 func writeConfig(root string, createdAt time.Time) error {
