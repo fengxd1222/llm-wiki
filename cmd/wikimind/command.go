@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 
+	"github.com/fengxd1222/llm-wiki/internal/index"
+	"github.com/fengxd1222/llm-wiki/internal/service"
 	"github.com/fengxd1222/llm-wiki/internal/vault"
 	"github.com/spf13/cobra"
 )
@@ -22,7 +24,8 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 
 	cmd.AddCommand(newInitCommand(stdout))
 	cmd.AddCommand(newStatusCommand(stdout))
-	for _, name := range []string{"ingest", "query", "review", "lint", "revert"} {
+	cmd.AddCommand(newIngestCommand(stdout))
+	for _, name := range []string{"query", "review", "lint", "revert"} {
 		cmd.AddCommand(newStubCommand(stdout, name))
 	}
 	return cmd
@@ -61,6 +64,45 @@ func newStatusCommand(stdout io.Writer) *cobra.Command {
 				return err
 			}
 			printStatus(stdout, status)
+			return nil
+		},
+	}
+}
+
+func newIngestCommand(stdout io.Writer) *cobra.Command {
+	return &cobra.Command{
+		Use:   "ingest <path>",
+		Short: "Ingest a file into raw/inbox/ and record sources",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			start, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("resolve working directory: %w", err)
+			}
+			vaultRoot, err := vault.FindRoot(start)
+			if err != nil {
+				return err
+			}
+			db, err := index.Open(vaultRoot)
+			if err != nil {
+				return err
+			}
+			defer db.Close()
+
+			result, err := service.IngestFile(cmd.Context(), db, vaultRoot, args[0])
+			if err != nil {
+				return err
+			}
+
+			src := result.Source
+			marker := "ingested"
+			if result.Duplicate {
+				marker = "duplicate"
+			}
+			fmt.Fprintf(stdout, "%s: %s\n", marker, src.RawID)
+			fmt.Fprintf(stdout, "sha256: %s\n", src.SHA256)
+			fmt.Fprintf(stdout, "size: %d\n", src.Size)
+			fmt.Fprintf(stdout, "status: %s\n", src.Status)
 			return nil
 		},
 	}
