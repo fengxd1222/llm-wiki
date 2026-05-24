@@ -581,3 +581,47 @@ schema_version: "1.0"
 		t.Fatalf("page show missing id should error, got output:\n%s", out.String())
 	}
 }
+
+// TestMcpServeCommandRegistered 不实跑 stdio——只验证 `wikimind mcp serve`
+// 命令存在、--vault flag 暴露、help 文本指明 4 个 D8 tool。
+// stdio 通路无法 mock os.Stdin/os.Stdout，端到端验证留 docs/demo/mcp-inspector.md
+// 手动执行。
+func TestMcpServeCommandRegistered(t *testing.T) {
+	var out bytes.Buffer
+	cmd := newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"mcp", "serve", "--help"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("mcp serve --help error = %v\nout=%s", err, out.String())
+	}
+	help := out.String()
+	for _, want := range []string{
+		"WikiMind MCP server",
+		"wiki_info",
+		"read_page",
+		"read_raw",
+		"list_index",
+		"--vault",
+	} {
+		if !strings.Contains(help, want) {
+			t.Fatalf("mcp serve help missing %q:\n%s", want, help)
+		}
+	}
+}
+
+// TestMcpServeCommandWithoutVault 没找到 vault 时 mcp serve 必须 surface
+// 一个友好错误而不是 silently boot 一个无源 server。
+func TestMcpServeCommandWithoutVault(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Chdir(tempDir)
+
+	var out bytes.Buffer
+	cmd := newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"mcp", "serve", "--vault", tempDir})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatalf("mcp serve without vault should error, got: %s", out.String())
+	}
+	if !strings.Contains(err.Error(), "no WikiMind vault found") {
+		t.Fatalf("expected 'no WikiMind vault found' in error, got: %v", err)
+	}
+}

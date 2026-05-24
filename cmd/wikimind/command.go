@@ -2,16 +2,21 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/fengxd1222/llm-wiki/internal/commit"
 	"github.com/fengxd1222/llm-wiki/internal/index"
+	mcppkg "github.com/fengxd1222/llm-wiki/internal/mcp"
 	"github.com/fengxd1222/llm-wiki/internal/service"
 	"github.com/fengxd1222/llm-wiki/internal/vault"
 	"github.com/spf13/cobra"
@@ -34,10 +39,106 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 	cmd.AddCommand(newPageCommand(stdout))
 	cmd.AddCommand(newQueryCommand(stdout))
 	cmd.AddCommand(newRevertCommand(stdout, os.Stdin))
+	cmd.AddCommand(newMcpCommand(stdout, stderr))
 	for _, name := range []string{"review", "lint"} {
 		cmd.AddCommand(newStubCommand(stdout, name))
 	}
 	return cmd
+}
+
+// newMcpCommand 父命令 `wikimind mcp`，承载 D8 起的 MCP 子命令。
+// D8 只有 `serve`；D10+ 可能加 `inspect` / `tools list` 等便利命令。
+func newMcpCommand(stdout, stderr io.Writer) *cobra.Command {
+	mcp := &cobra.Command{
+		Use:   "mcp",
+		Short: "MCP server commands",
+	}
+	mcp.AddCommand(newMcpServeCommand(stdout, stderr))
+	return mcp
+}
+
+// newMcpServeCommand 在 stdin/stdout 上跑 wikimind MCP server。
+//
+// 关键纪律：
+//   - stdout 是 MCP protocol 通道——本命令运行期间禁止任何写 stdout 的
+//     副作用（默认 cobra.Command 不会写 stdout，自定义打印必须改 stderr）
+//   - 所有 logging 走 stderr（log.New(os.Stderr, ...)）
+//   - 接 SIGINT/SIGTERM 优雅退出，让 Claude Desktop 能干净关 server
+//
+// 参数 stderr 是 root command 持有的 stderr writer——给 test/CLI 复用同一
+// 通道；运行时 default 是 os.Stderr。
+func newMcpServeCommand(stdout, stderr io.Writer) *cobra.Command {
+	var vaultPath string
+	cmd := &cobra.Command{
+		Use:   "serve",
+		Short: "Run WikiMind MCP server on stdio (read-only tools: wiki_info, read_page, read_raw, list_index)",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_ = stdout // stdout is the MCP protocol stream; not for human-readable output.
+			logger := log.New(stderr, "wikimind-mcp: ", log.LstdFlags|log.Lmicroseconds)
+
+			vaultRoot, err := resolveVaultForServe(vaultPath)
+			if err != nil {
+				return err
+			}
+			logger.Printf("vault=%s", vaultRoot)
+
+			db, err := index.Open(vaultRoot)
+			if err != nil {
+				return fmt.Errorf("open index: %w", err)
+			}
+			defer db.Close()
+
+			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
+
+			server, err := mcppkg.NewServer(ctx, vaultRoot, db)
+			if err != nil {
+				return fmt.Errorf("build mcp server: %w", err)
+			}
+			logger.Printf("ready: 4 tools registered (wiki_info, read_page, read_raw, list_index)")
+
+			if err := mcppkg.RunStdio(ctx, server); err != nil {
+				// ctx cancel 触发的关闭走 SDK 内部 EOF/ContextDone；
+				// 视作正常退出避免 wrap 噪声。
+				if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
+					logger.Printf("shutdown via signal")
+					return nil
+				}
+				return err
+			}
+			logger.Printf("shutdown clean")
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&vaultPath, "vault", "",
+		"vault root (default: walk up from cwd to find .wikimind/config.toml)")
+	return cmd
+}
+
+// resolveVaultForServe 解析 mcp serve 的 vault root：
+//   - --vault <path> 显式指定 → vault.FindRoot 从该路径向上找
+//   - 未指定 → 从 cwd 向上找
+//
+// 失败给清晰错误，不让 server 带空 config 起来。
+func resolveVaultForServe(explicit string) (string, error) {
+	start := strings.TrimSpace(explicit)
+	if start == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("resolve cwd: %w", err)
+		}
+		start = cwd
+	}
+	root, err := vault.FindRoot(start)
+	if err != nil {
+		return "", err
+	}
+	// LoadConfig 一遍当 sanity check —— 配置坏的 vault 不应 boot server。
+	if _, err := vault.LoadConfig(root); err != nil {
+		return "", fmt.Errorf("vault config invalid: %w", err)
+	}
+	return root, nil
 }
 
 func newInitCommand(stdout io.Writer) *cobra.Command {
