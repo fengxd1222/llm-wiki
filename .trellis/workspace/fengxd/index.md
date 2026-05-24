@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 5
-- **Last Active**: 2026-05-23
+- **Total Sessions**: 6
+- **Last Active**: 2026-05-24
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~173 | Active |
+| `journal-1.md` | ~206 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 6 | 2026-05-24 | W1 D5: FTS5 trigram query 命令 + ripgrep 兜底 | `bbba12c` | `main` |
 | 5 | 2026-05-23 | W1 D4: markdown frontmatter 解析 + pages 表 + page 命令组 | `a9cd424` | `main` |
 | 4 | 2026-05-23 | Fix: Windows path cross-validate case sensitivity（D2 fix-up） | `10d7800`, `cf76ab4` | `main` |
 | 3 | 2026-05-23 | W1 D3: raw ingest + SQLite + goose migration 链路 | `f7110ac` | `main` |

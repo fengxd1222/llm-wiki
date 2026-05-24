@@ -171,3 +171,36 @@ migrations/0002 加 pages 表（含 body 列供 trigger 读）+ pages_fts(trigra
 ### Next Steps
 
 - None - task complete
+
+
+## Session 6: W1 D5: FTS5 trigram query 命令 + ripgrep 兜底
+
+**Date**: 2026-05-24
+**Task**: W1 D5: FTS5 trigram query 命令 + ripgrep 兜底
+**Branch**: `main`
+
+### Summary
+
+实现 wikimind query：FTS5 trigram MATCH + BM25 + snippet，短查询(< 3 chars) LIKE fallback，--no-index/--regex 走 ripgrep，rg 缺失 silently 降级 LIKE。CLI flags --no-index/--regex/--limit/--json/--verbose。+14 测试覆盖 FTS5 / LIKE / ripgrep 路由 / Windows 盘符路径 / 空索引友好错误。trellis-check 顺便修正 escapeLikePattern 注释 + ripgrep --max-count 注释。CI 5 OS 全绿。W1 完成 5/7 天。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `bbba12c` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
