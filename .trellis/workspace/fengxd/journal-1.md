@@ -336,3 +336,36 @@ migrations/0002 加 pages 表（含 body 列供 trigger 读）+ pages_fts(trigra
 ### Next Steps
 
 - None - task complete
+
+
+## Session 11: W2 D10 handshake worktree review base
+
+**Date**: 2026-05-24
+**Task**: W2 D10 handshake worktree review base
+**Branch**: `main`
+
+### Summary
+
+Implemented agent_handshake, git worktree per agent, reviews/bundles persistence, worktree CLI, tests, and D10 spec capture.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5eebd8d` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
