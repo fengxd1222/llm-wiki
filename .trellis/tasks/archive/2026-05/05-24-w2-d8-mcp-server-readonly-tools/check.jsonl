@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量基准"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "校验 sentinel error + path traversal 防护 + stderr-only logging"}
+{"file": "spec-v2/docs/mcp-tools.md", "reason": "校验 4 个 tool response shape 严格匹配 spec §2-4 §7"}
+{"file": "spec-v2/docs/agent-protocol.md", "reason": "校验 readOnlyHint 标签 + protocol 行为合规"}

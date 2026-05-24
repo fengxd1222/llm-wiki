@@ -1,0 +1,7 @@
+{"file": "spec-v2/docs/roadmap-30d.md", "reason": "D8 范围 + W2 出口要求"}
+{"file": "spec-v2/docs/mcp-tools.md", "reason": "§2-4 §7 四个 read tool 的 JSON schema + response shape (权威定义)"}
+{"file": "spec-v2/docs/agent-protocol.md", "reason": "MCP 协议总骨架 + readOnlyHint 语义"}
+{"file": "spec-v2/docs/engineering-decisions.md", "reason": "§2.3 MCP SDK 选型 (W0 已确认 go-sdk v1.6.1)"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量基准"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "sentinel error + path traversal 防护 + stderr logging 隔离"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "SQLite 连接共享 + COUNT(*) 高效查询"}
