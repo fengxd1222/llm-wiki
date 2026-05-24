@@ -116,6 +116,168 @@ func TestIngestCommand(t *testing.T) {
 	}
 }
 
+// TestIngestCommandAutoReindexAndQuery 端到端验证 W1 D7 出口 demo flow：
+// init → ingest（自动 reindex）→ query 命中。
+// 用中文 frontmatter title 覆盖 CJK trigram + source page 联动。
+func TestIngestCommandAutoReindexAndQuery(t *testing.T) {
+	tempDir := t.TempDir()
+	vaultRoot := filepath.Join(tempDir, "vault")
+	if _, err := vault.Init(vaultRoot); err != nil {
+		t.Fatalf("vault.Init: %v", err)
+	}
+
+	srcPath := filepath.Join(tempDir, "karpathy-demo.md")
+	body := []byte("---\ntitle: \"Karpathy 的 LLM 笔记\"\n---\n\n# Karpathy 的 LLM 笔记\n\n每一次 ingest 都让 wiki 更值钱。\n")
+	if err := os.WriteFile(srcPath, body, 0o644); err != nil {
+		t.Fatalf("seed source: %v", err)
+	}
+	t.Chdir(vaultRoot)
+
+	var out bytes.Buffer
+	cmd := newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"ingest", srcPath})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("ingest Execute() error = %v\nout=%s", err, out.String())
+	}
+	ingestOut := out.String()
+	for _, want := range []string{
+		"ingested: raw/inbox/karpathy-demo.md",
+		"source_page: wiki/sources/karpathy-demo.md",
+		"reindexed:",
+	} {
+		if !strings.Contains(ingestOut, want) {
+			t.Fatalf("ingest output missing %q:\n%s", want, ingestOut)
+		}
+	}
+	// source page 文件应存在。
+	if _, err := os.Stat(filepath.Join(vaultRoot, "wiki", "sources", "karpathy-demo.md")); err != nil {
+		t.Fatalf("source page missing: %v", err)
+	}
+
+	// query 中文 title 必须命中 source page（无需手动 reindex）。
+	out.Reset()
+	cmd = newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"query", "Karpathy"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("query Execute() error = %v\nout=%s", err, out.String())
+	}
+	queryOut := out.String()
+	for _, want := range []string{"karpathy-demo", "[source]"} {
+		if !strings.Contains(queryOut, want) {
+			t.Fatalf("query output missing %q:\n%s", want, queryOut)
+		}
+	}
+}
+
+// TestIngestCommandNoReindex 验证 --no-reindex flag 跳过自动 reindex。
+func TestIngestCommandNoReindex(t *testing.T) {
+	tempDir := t.TempDir()
+	vaultRoot := filepath.Join(tempDir, "vault")
+	if _, err := vault.Init(vaultRoot); err != nil {
+		t.Fatalf("vault.Init: %v", err)
+	}
+	srcPath := filepath.Join(tempDir, "skip.md")
+	if err := os.WriteFile(srcPath, []byte("# Skip\n"), 0o644); err != nil {
+		t.Fatalf("seed source: %v", err)
+	}
+	t.Chdir(vaultRoot)
+
+	var out bytes.Buffer
+	cmd := newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"ingest", srcPath, "--no-reindex"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("ingest Execute() error = %v\nout=%s", err, out.String())
+	}
+	ingestOut := out.String()
+	if !strings.Contains(ingestOut, "source_page: wiki/sources/skip.md") {
+		t.Fatalf("expected source_page in output:\n%s", ingestOut)
+	}
+	if strings.Contains(ingestOut, "reindexed:") {
+		t.Fatalf("--no-reindex did not suppress reindex output:\n%s", ingestOut)
+	}
+
+	// 未 reindex → query 应给出"先 reindex"提示，而不是命中。
+	out.Reset()
+	cmd = newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"query", "Skip"})
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("query against un-reindexed vault should error, got: %s", out.String())
+	}
+}
+
+// TestW1DemoWalkthroughCISmokeTest 跑 W1 出口 demo 全套：
+// init → ingest（中英混排 raw）→ query 命中 → revert → 内容消失。
+// 此测试必须在 CI 5 OS 全跑通，作为 W1 出口的回归护栏。
+func TestW1DemoWalkthroughCISmokeTest(t *testing.T) {
+	tempDir := t.TempDir()
+	vaultRoot := filepath.Join(tempDir, "demo-vault")
+
+	// step 1: init
+	var out bytes.Buffer
+	cmd := newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"init", vaultRoot})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("init Execute() error = %v\nout=%s", err, out.String())
+	}
+
+	// step 2: 手写一份中英混排 raw markdown
+	srcPath := filepath.Join(tempDir, "wiki-cookbook.md")
+	body := []byte("---\ntitle: \"WikiMind 烹饪手册\"\n---\n\n# WikiMind 烹饪手册\n\n第一道菜：使用 TypeScript 写 claim 抽取算法。\n")
+	if err := os.WriteFile(srcPath, body, 0o644); err != nil {
+		t.Fatalf("seed source: %v", err)
+	}
+	t.Chdir(vaultRoot)
+
+	// step 3: ingest
+	out.Reset()
+	cmd = newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"ingest", srcPath})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("ingest Execute() error = %v\nout=%s", err, out.String())
+	}
+	if !strings.Contains(out.String(), "source_page: wiki/sources/wiki-cookbook.md") {
+		t.Fatalf("ingest missing source page line:\n%s", out.String())
+	}
+
+	// step 4: query CJK substring → 命中 source page
+	out.Reset()
+	cmd = newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"query", "烹饪"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("query CJK Execute() error = %v\nout=%s", err, out.String())
+	}
+	if !strings.Contains(out.String(), "wiki-cookbook") {
+		t.Fatalf("query 烹饪 missed source page:\n%s", out.String())
+	}
+
+	// step 5: query 英文 token → 命中（混合语言）
+	out.Reset()
+	cmd = newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"query", "WikiMind"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("query EN Execute() error = %v\nout=%s", err, out.String())
+	}
+	if !strings.Contains(out.String(), "wiki-cookbook") {
+		t.Fatalf("query WikiMind missed source page:\n%s", out.String())
+	}
+
+	// step 6: revert 第一个 commit（seq=1 即 ingest）
+	out.Reset()
+	cmd = newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"revert", "1", "--no-confirm"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("revert Execute() error = %v\nout=%s", err, out.String())
+	}
+	// raw 应被删除
+	if _, err := os.Stat(filepath.Join(vaultRoot, "raw", "inbox", "wiki-cookbook.md")); !os.IsNotExist(err) {
+		t.Fatalf("raw file after revert err = %v, want not exist", err)
+	}
+	// source page 也应被删除
+	if _, err := os.Stat(filepath.Join(vaultRoot, "wiki", "sources", "wiki-cookbook.md")); !os.IsNotExist(err) {
+		t.Fatalf("source page after revert err = %v, want not exist", err)
+	}
+}
+
 func TestStubCommands(t *testing.T) {
 	for _, name := range []string{"review", "lint"} {
 		var out bytes.Buffer

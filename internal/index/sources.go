@@ -44,6 +44,17 @@ FROM sources WHERE sha256 = ? LIMIT 1`
 	return &s, nil
 }
 
+// DeleteSourceByRawID 按 raw_id 删除一行 source。未命中视为成功（best-effort 回滚用）。
+func DeleteSourceByRawID(ctx context.Context, db *DB, rawID string) error {
+	if db == nil || db.SQL() == nil {
+		return ErrIndexUnavailable
+	}
+	if _, err := db.SQL().ExecContext(ctx, `DELETE FROM sources WHERE raw_id = ?`, rawID); err != nil {
+		return fmt.Errorf("delete source %s: %w", rawID, err)
+	}
+	return nil
+}
+
 // InsertSource 写入一行 source。raw_id 冲突时返回错误（调用方应先去重）。
 func InsertSource(ctx context.Context, db *DB, src *SourceRow) error {
 	if db == nil || db.SQL() == nil {

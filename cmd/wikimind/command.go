@@ -79,7 +79,8 @@ func newStatusCommand(stdout io.Writer) *cobra.Command {
 }
 
 func newIngestCommand(stdout io.Writer) *cobra.Command {
-	return &cobra.Command{
+	var noReindex bool
+	cmd := &cobra.Command{
 		Use:   "ingest <path>",
 		Short: "Ingest a file into raw/inbox/ and record sources",
 		Args:  cobra.ExactArgs(1),
@@ -112,9 +113,31 @@ func newIngestCommand(stdout io.Writer) *cobra.Command {
 			fmt.Fprintf(stdout, "sha256: %s\n", src.SHA256)
 			fmt.Fprintf(stdout, "size: %d\n", src.Size)
 			fmt.Fprintf(stdout, "status: %s\n", src.Status)
+			if result.SourcePage != nil {
+				if result.SourcePage.Created {
+					fmt.Fprintf(stdout, "source_page: %s\n", result.SourcePage.RelPath)
+				} else {
+					fmt.Fprintf(stdout, "source_page: %s (existed)\n", result.SourcePage.RelPath)
+				}
+			}
+
+			// D7: 默认 ingest 完自动 reindex，让新 source page 立即可 query。
+			// reindex 失败不阻塞 ingest 主流程（commit 已成功）——
+			// 打印 warning 到 stderr，user 可手动重跑 `wikimind page reindex`。
+			if !noReindex && !result.Duplicate {
+				if res, rerr := service.ReindexWiki(cmd.Context(), db, vaultRoot); rerr != nil {
+					fmt.Fprintf(cmd.ErrOrStderr(),
+						"warning: auto reindex failed (run 'wikimind page reindex' manually): %v\n", rerr)
+				} else {
+					fmt.Fprintf(stdout, "reindexed: %d pages\n", res.Count)
+				}
+			}
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&noReindex, "no-reindex", false,
+		"skip the automatic 'page reindex' that runs after ingest")
+	return cmd
 }
 
 func newPageCommand(stdout io.Writer) *cobra.Command {

@@ -36,6 +36,9 @@ type IngestResult struct {
 	// LogEntry 是本次 ingest 触发的 commit log（含 seq / git short sha）。
 	// Duplicate=true 时为 nil（去重路径不 commit）。
 	LogEntry *commit.LogEntry
+	// SourcePage 描述 wiki/sources/<id>.md 的生成结果。
+	// Duplicate=true 时为 nil（不重复创建 source page）。
+	SourcePage *SourcePageResult
 }
 
 // IngestFile 把外部文件复制到 vaultRoot/raw/inbox/<basename>，
@@ -98,15 +101,33 @@ func IngestFile(
 		return nil, err
 	}
 
-	// D6: 触发 auto-commit。raw_id 已是 vault-relative POSIX 路径，可直接交给 git add。
+	// D7: 生成 wiki/sources/<id>.md（幂等：已存在则跳过）。
+	// 失败回滚已复制的 raw 文件 + source row，避免 commit 一个半成品。
+	srcPage, err := EnsureSourcePage(vaultRoot, row.RawID)
+	if err != nil {
+		_ = os.Remove(destAbs)
+		_ = index.DeleteSourceByRawID(ctx, db, row.RawID)
+		return nil, fmt.Errorf("ensure source page for %s: %w", row.RawID, err)
+	}
+
+	// D6+D7: 触发 auto-commit。raw 文件 + source page 一起进同一个 commit。
 	// commit 失败不回滚 source row / 文件——sources 表是 derived state，可通过
 	// reconcile/rebuild 修；commit 失败时下次 ingest 会和 prev log 行一起带走。
-	entry, err := commit.Commit(ctx, vaultRoot, "ingest", row.RawID, []string{row.RawID})
+	commitPaths := []string{row.RawID}
+	if srcPage != nil && srcPage.Created {
+		commitPaths = append(commitPaths, srcPage.RelPath)
+	}
+	entry, err := commit.Commit(ctx, vaultRoot, "ingest", row.RawID, commitPaths)
 	if err != nil {
 		return nil, fmt.Errorf("auto-commit ingest %s: %w", row.RawID, err)
 	}
 
-	return &IngestResult{Source: row, WrittenTo: destAbs, LogEntry: entry}, nil
+	return &IngestResult{
+		Source:     row,
+		WrittenTo:  destAbs,
+		LogEntry:   entry,
+		SourcePage: srcPage,
+	}, nil
 }
 
 // validateVaultRoot 确认 vaultRoot 指向一个已存在的目录。
