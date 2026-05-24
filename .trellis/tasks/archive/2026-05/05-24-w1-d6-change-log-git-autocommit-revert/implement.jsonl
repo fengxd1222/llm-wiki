@@ -1,0 +1,7 @@
+{"file": "spec-v2/docs/roadmap-30d.md", "reason": "D6 任务范围 + W1 出口标准"}
+{"file": "spec-v2/docs/agent-protocol.md", "reason": "§7 change-log 格式 (jsonl + log.md) + §7.3 append-only 强制"}
+{"file": "spec-v2/docs/architecture.md", "reason": "§2.3 Single-Writer Commit Loop 模型 (W1 MVP 简化版)"}
+{"file": "spec-v2/docs/engineering-decisions.md", "reason": "§4.4 exec git 而非 go-git 的决策依据"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "service 层访问规范 (即使 D6 不直接写 db)"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "sentinel error pattern + %w wrap"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量基准"}

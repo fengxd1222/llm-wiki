@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量基准"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "校验错误处理合规 + sentinel pattern"}
+{"file": "spec-v2/docs/agent-protocol.md", "reason": "校验 §7 change-log 格式 + §7.3 append-only 强制"}
+{"file": "spec-v2/docs/architecture.md", "reason": "校验 §2.3 commit loop (MVP 简化版) 不破坏 atomicity 约定"}
