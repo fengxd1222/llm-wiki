@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/fengxd1222/llm-wiki/internal/commit"
 	"github.com/fengxd1222/llm-wiki/internal/vault"
+	worktreepkg "github.com/fengxd1222/llm-wiki/internal/worktree"
 )
 
 func TestInitAndStatusCommands(t *testing.T) {
@@ -290,6 +292,67 @@ func TestStubCommands(t *testing.T) {
 		if out.String() != want {
 			t.Fatalf("%s output = %q, want %q", name, out.String(), want)
 		}
+	}
+}
+
+func TestWorktreeCommands(t *testing.T) {
+	ctx := context.Background()
+	vaultRoot := filepath.Join(t.TempDir(), "vault")
+	if _, err := vault.Init(vaultRoot); err != nil {
+		t.Fatalf("vault.Init: %v", err)
+	}
+	if err := commit.GitAdd(ctx, vaultRoot, "."); err != nil {
+		t.Fatalf("GitAdd: %v", err)
+	}
+	if _, err := commit.GitCommit(ctx, vaultRoot, "init"); err != nil {
+		t.Fatalf("GitCommit: %v", err)
+	}
+	t.Chdir(vaultRoot)
+
+	var out bytes.Buffer
+	cmd := newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"worktree", "list"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("worktree list empty: %v", err)
+	}
+	if !strings.Contains(out.String(), "no worktrees") {
+		t.Fatalf("empty worktree list output = %q", out.String())
+	}
+
+	if _, err := worktreepkg.CreateWorktree(ctx, vaultRoot, "codex-cli", "sess-1"); err != nil {
+		t.Fatalf("CreateWorktree: %v", err)
+	}
+
+	out.Reset()
+	cmd = newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"worktree", "list"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("worktree list: %v", err)
+	}
+	for _, want := range []string{"wt-codex-cli-sess-1", "codex-cli", "sess-1", "wiki/_worktrees/agent-codex-cli-sess-1"} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("worktree list missing %q:\n%s", want, out.String())
+		}
+	}
+
+	out.Reset()
+	cmd = newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"worktree", "remove", "codex-cli/sess-1"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("worktree remove: %v", err)
+	}
+	if !strings.Contains(out.String(), "removed: codex-cli/sess-1") {
+		t.Fatalf("worktree remove output = %q", out.String())
+	}
+
+	out.Reset()
+	cmd = newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"worktree", "list"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("worktree list after remove: %v", err)
+	}
+	if !strings.Contains(out.String(), "no worktrees") {
+		t.Fatalf("worktree list after remove = %q", out.String())
 	}
 }
 

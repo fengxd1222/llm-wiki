@@ -37,7 +37,7 @@ func NewServer(ctx context.Context, vaultRoot string, db *index.DB) (*sdk.Server
 		Version: daemonVersion,
 	}, nil)
 
-	backend := &vaultBackend{root: vaultRoot, db: db}
+	backend := &vaultBackend{root: vaultRoot, db: db, sessions: NewSessionStore()}
 	registerTools(server, backend)
 	return server, nil
 }
@@ -51,6 +51,13 @@ func NewServer(ctx context.Context, vaultRoot string, db *index.DB) (*sdk.Server
 // Code / Claude Desktop）跳过 user confirmation（mcp-tools.md §0、§22）。
 func registerTools(server *sdk.Server, b *vaultBackend) {
 	readOnly := &sdk.ToolAnnotations{ReadOnlyHint: true}
+	writeMeta := &sdk.ToolAnnotations{ReadOnlyHint: false}
+
+	sdk.AddTool(server, &sdk.Tool{
+		Name:        "agent_handshake",
+		Description: "Register agent session, negotiate schema version, get worktree.",
+		Annotations: writeMeta,
+	}, wrapHandler(b.handleAgentHandshake))
 
 	sdk.AddTool(server, &sdk.Tool{
 		Name:        "wiki_info",

@@ -37,6 +37,7 @@ func TestInitCreatesVaultStructure(t *testing.T) {
 		"wiki/topics",
 		"wiki/_review",
 		"wiki/_reports",
+		"wiki/_worktrees",
 		"schema",
 		".wikimind/audit",
 		".wikimind/locks",
@@ -47,6 +48,7 @@ func TestInitCreatesVaultStructure(t *testing.T) {
 
 	for _, rel := range []string{
 		".wikimind/config.toml",
+		".gitignore",
 		"wiki/index.md",
 		"wiki/log.md",
 	} {
@@ -59,6 +61,16 @@ func TestInitCreatesVaultStructure(t *testing.T) {
 	}
 	if !strings.Contains(string(config), `schema_version = "1.0"`) {
 		t.Fatalf("config missing schema_version: %s", config)
+	}
+	if !strings.Contains(string(config), `allowed_agents = ["claude-code", "codex-cli", "cursor", "cline", "opencode"]`) {
+		t.Fatalf("config missing allowed_agents: %s", config)
+	}
+	gitignore, err := os.ReadFile(filepath.Join(root, ".gitignore"))
+	if err != nil {
+		t.Fatalf("read .gitignore: %v", err)
+	}
+	if !strings.Contains(string(gitignore), "wiki/_worktrees/") {
+		t.Fatalf(".gitignore missing wiki/_worktrees/: %s", gitignore)
 	}
 }
 

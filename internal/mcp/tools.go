@@ -24,6 +24,7 @@ import (
 	"github.com/fengxd1222/llm-wiki/internal/index"
 	"github.com/fengxd1222/llm-wiki/internal/service"
 	"github.com/fengxd1222/llm-wiki/internal/vault"
+	worktreepkg "github.com/fengxd1222/llm-wiki/internal/worktree"
 )
 
 // ErrFormatUnsupported 表示客户端请求了 D8 尚未实现的 read_raw format
@@ -47,6 +48,14 @@ var ErrClaimNotFound = errors.New("claim not found")
 
 // ErrDepthUnsupported 表示 graph_neighbors 收到 D9 尚不支持的 depth。
 var ErrDepthUnsupported = errors.New("graph depth unsupported")
+
+// Handshake error codes are intentionally uppercase because MCP clients parse
+// them from tool error content.
+var (
+	ErrAgentNotWhitelisted  = errors.New("AGENT_NOT_WHITELISTED")
+	ErrSchemaIncompatible   = errors.New("SCHEMA_INCOMPATIBLE")
+	ErrWorktreeCreateFailed = errors.New("WORKTREE_CREATE_FAILED")
+)
 
 // daemonVersion 在 wiki_info 响应中返回；与 cmd/wikimind 的 version 解耦
 // 一些——MCP 进程语义上是 daemon 角色（D10+ 由真正 daemon 接管前 staged）。
@@ -77,8 +86,118 @@ const (
 // vaultBackend 把 MCP tool 需要的依赖收拢为一个结构，让 server 构造时
 // 一次性传入；handler 通过闭包持有，避免每次 tool 调用走 context value 取值。
 type vaultBackend struct {
-	root string
-	db   *index.DB
+	root     string
+	db       *index.DB
+	sessions *SessionStore
+}
+
+func (b *vaultBackend) sessionStore() *SessionStore {
+	if b.sessions == nil {
+		b.sessions = NewSessionStore()
+	}
+	return b.sessions
+}
+
+// handleAgentHandshake implements mcp-tools.md §1.
+func (b *vaultBackend) handleAgentHandshake(ctx context.Context, args AgentHandshakeArgs) (AgentHandshakeResult, error) {
+	args.Agent = strings.TrimSpace(args.Agent)
+	args.Version = strings.TrimSpace(args.Version)
+	args.SessionID = strings.TrimSpace(args.SessionID)
+	args.DeclaresSchemaVersion = strings.TrimSpace(args.DeclaresSchemaVersion)
+	if args.Agent == "" {
+		return AgentHandshakeResult{}, errors.New("agent_handshake: agent is required")
+	}
+	if args.Version == "" {
+		return AgentHandshakeResult{}, errors.New("agent_handshake: version is required")
+	}
+	if args.SessionID == "" {
+		return AgentHandshakeResult{}, errors.New("agent_handshake: session_id is required")
+	}
+	if args.DeclaresSchemaVersion == "" {
+		return AgentHandshakeResult{}, errors.New("agent_handshake: declares_schema_version is required")
+	}
+
+	cfg, err := vault.LoadConfig(b.root)
+	if err != nil {
+		return AgentHandshakeResult{}, fmt.Errorf("agent_handshake: load config: %w", err)
+	}
+	daemonSchema := cfg.SchemaVersion
+	if daemonSchema == "" {
+		daemonSchema = fallbackSchemaVersion
+	}
+	pending, err := index.CountReviewsByStatus(ctx, b.db, "pending")
+	if err != nil {
+		return AgentHandshakeResult{}, fmt.Errorf("agent_handshake: queue state: %w", err)
+	}
+	base := AgentHandshakeResult{
+		DaemonSchemaVersion: daemonSchema,
+		InstructionsToRead: []string{
+			"schema/AGENTS.md",
+			"schema/CLAUDE.md",
+			"schema/page-schemas.md",
+		},
+		RateLimits: RateLimitsBlock{
+			ProposePerMinute: 30,
+			QueryPerMinute:   60,
+		},
+		QueueState: QueueStateBlock{
+			Pending:   pending,
+			HardLimit: 50,
+		},
+	}
+
+	if !agentAllowed(args.Agent, cfg.AllowedAgents) {
+		return AgentHandshakeResult{}, fmt.Errorf("%w: %s", ErrAgentNotWhitelisted, args.Agent)
+	}
+	if !schemaMajorCompatible(args.DeclaresSchemaVersion, daemonSchema) {
+		base.Accepted = false
+		base.AcceptedCapabilities = []string{"read"}
+		base.QueueState.CanPropose = false
+		return base, nil
+	}
+
+	token, err := newSessionToken()
+	if err != nil {
+		return AgentHandshakeResult{}, err
+	}
+	now := time.Now().UTC()
+	sess := &Session{
+		Token:         token,
+		Agent:         args.Agent,
+		Version:       args.Version,
+		SessionID:     args.SessionID,
+		Capabilities:  append([]string(nil), args.Capabilities...),
+		SchemaVersion: args.DeclaresSchemaVersion,
+		CreatedAt:     now,
+		LastSeenAt:    now,
+		IdleTimeout:   defaultIdleTimeout,
+	}
+	store := b.sessionStore()
+	if err := store.Register(sess); err != nil {
+		return AgentHandshakeResult{}, err
+	}
+
+	wt, err := worktreepkg.CreateWorktree(ctx, b.root, args.Agent, args.SessionID)
+	if err != nil {
+		store.remove(token)
+		return AgentHandshakeResult{}, fmt.Errorf("%w: %w", ErrWorktreeCreateFailed, err)
+	}
+	sess.WorktreePath = wt.Path
+
+	rel, err := filepath.Rel(b.root, wt.Path)
+	if err != nil {
+		rel = filepath.Join("wiki", "_worktrees", filepath.Base(wt.Path))
+	}
+	rel = filepath.ToSlash(rel)
+	if !strings.HasSuffix(rel, "/") {
+		rel += "/"
+	}
+
+	base.Accepted = true
+	base.Worktree = rel
+	base.SessionToken = token
+	base.QueueState.CanPropose = pending < base.QueueState.HardLimit
+	return base, nil
 }
 
 // handleWikiInfo 实现 mcp-tools.md §2 wiki_info。
@@ -875,6 +994,35 @@ func runVaultGit(ctx context.Context, vaultRoot string, args ...string) (string,
 		return stdout.String(), errors.New(msg)
 	}
 	return stdout.String(), nil
+}
+
+func agentAllowed(agent string, allowed []string) bool {
+	if len(allowed) == 0 {
+		allowed = vault.DefaultAllowedAgents()
+	}
+	for _, name := range allowed {
+		if strings.TrimSpace(name) == agent {
+			return true
+		}
+	}
+	return false
+}
+
+func schemaMajorCompatible(agentVersion, daemonVersion string) bool {
+	agentMajor := schemaMajor(agentVersion)
+	daemonMajor := schemaMajor(daemonVersion)
+	return agentMajor != "" && agentMajor == daemonMajor
+}
+
+func schemaMajor(version string) string {
+	version = strings.TrimSpace(version)
+	if version == "" {
+		return ""
+	}
+	if major, _, ok := strings.Cut(version, "."); ok {
+		return major
+	}
+	return version
 }
 
 func minInt(a, b int) int {

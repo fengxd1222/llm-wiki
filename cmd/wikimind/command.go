@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -19,6 +20,7 @@ import (
 	mcppkg "github.com/fengxd1222/llm-wiki/internal/mcp"
 	"github.com/fengxd1222/llm-wiki/internal/service"
 	"github.com/fengxd1222/llm-wiki/internal/vault"
+	worktreepkg "github.com/fengxd1222/llm-wiki/internal/worktree"
 	"github.com/spf13/cobra"
 )
 
@@ -40,6 +42,7 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 	cmd.AddCommand(newQueryCommand(stdout))
 	cmd.AddCommand(newRevertCommand(stdout, os.Stdin))
 	cmd.AddCommand(newMcpCommand(stdout, stderr))
+	cmd.AddCommand(newWorktreeCommand(stdout))
 	for _, name := range []string{"review", "lint"} {
 		cmd.AddCommand(newStubCommand(stdout, name))
 	}
@@ -71,7 +74,7 @@ func newMcpServeCommand(stdout, stderr io.Writer) *cobra.Command {
 	var vaultPath string
 	cmd := &cobra.Command{
 		Use:   "serve",
-		Short: "Run WikiMind MCP server on stdio (wiki_info, read_page, read_raw, list_index, search, read_raw_anchor, read_claim, graph_neighbors, get_history)",
+		Short: "Run WikiMind MCP server on stdio (agent_handshake, wiki_info, read_page, read_raw, list_index, search, read_raw_anchor, read_claim, graph_neighbors, get_history)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = stdout // stdout is the MCP protocol stream; not for human-readable output.
@@ -96,7 +99,7 @@ func newMcpServeCommand(stdout, stderr io.Writer) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("build mcp server: %w", err)
 			}
-			logger.Printf("ready: 9 tools registered")
+			logger.Printf("ready: 10 tools registered")
 
 			if err := mcppkg.RunStdio(ctx, server); err != nil {
 				// ctx cancel 触发的关闭走 SDK 内部 EOF/ContextDone；
@@ -114,6 +117,69 @@ func newMcpServeCommand(stdout, stderr io.Writer) *cobra.Command {
 	cmd.Flags().StringVar(&vaultPath, "vault", "",
 		"vault root (default: walk up from cwd to find .wikimind/config.toml)")
 	return cmd
+}
+
+func newWorktreeCommand(stdout io.Writer) *cobra.Command {
+	worktree := &cobra.Command{
+		Use:   "worktree",
+		Short: "Inspect and clean agent worktrees",
+	}
+	worktree.AddCommand(newWorktreeListCommand(stdout))
+	worktree.AddCommand(newWorktreeRemoveCommand(stdout))
+	return worktree
+}
+
+func newWorktreeListCommand(stdout io.Writer) *cobra.Command {
+	return &cobra.Command{
+		Use:   "list",
+		Short: "List agent git worktrees",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			vaultRoot, err := resolveVaultFromCWD()
+			if err != nil {
+				return err
+			}
+			worktrees, err := worktreepkg.ListWorktrees(cmd.Context(), vaultRoot)
+			if err != nil {
+				return err
+			}
+			if len(worktrees) == 0 {
+				fmt.Fprintln(stdout, "no worktrees")
+				return nil
+			}
+			for _, wt := range worktrees {
+				path := wt.Path
+				if rel, err := filepath.Rel(vaultRoot, wt.Path); err == nil {
+					path = filepath.ToSlash(rel)
+				}
+				fmt.Fprintf(stdout, "%s\t%s\t%s\t%s\n", wt.Branch, wt.Agent, wt.SessionID, path)
+			}
+			return nil
+		},
+	}
+}
+
+func newWorktreeRemoveCommand(stdout io.Writer) *cobra.Command {
+	return &cobra.Command{
+		Use:   "remove <agent>/<session-id>",
+		Short: "Force-remove an agent git worktree",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			agent, sessionID, ok := strings.Cut(args[0], "/")
+			if !ok || strings.TrimSpace(agent) == "" || strings.TrimSpace(sessionID) == "" {
+				return fmt.Errorf("worktree remove: expected <agent>/<session-id>, got %q", args[0])
+			}
+			vaultRoot, err := resolveVaultFromCWD()
+			if err != nil {
+				return err
+			}
+			if err := worktreepkg.RemoveWorktree(cmd.Context(), vaultRoot, agent, sessionID); err != nil {
+				return err
+			}
+			fmt.Fprintf(stdout, "removed: %s/%s\n", agent, sessionID)
+			return nil
+		},
+	}
 }
 
 // resolveVaultForServe 解析 mcp serve 的 vault root：
@@ -333,11 +399,7 @@ func newPageShowCommand(stdout io.Writer) *cobra.Command {
 
 // openVaultAndIndex resolves vault root from cwd and opens the SQLite index.
 func openVaultAndIndex() (string, *index.DB, error) {
-	start, err := os.Getwd()
-	if err != nil {
-		return "", nil, fmt.Errorf("resolve working directory: %w", err)
-	}
-	vaultRoot, err := vault.FindRoot(start)
+	vaultRoot, err := resolveVaultFromCWD()
 	if err != nil {
 		return "", nil, err
 	}
@@ -346,6 +408,18 @@ func openVaultAndIndex() (string, *index.DB, error) {
 		return "", nil, err
 	}
 	return vaultRoot, db, nil
+}
+
+func resolveVaultFromCWD() (string, error) {
+	start, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("resolve working directory: %w", err)
+	}
+	vaultRoot, err := vault.FindRoot(start)
+	if err != nil {
+		return "", err
+	}
+	return vaultRoot, nil
 }
 
 // printPagesGrouped prints pages grouped by type, sorted by id within each type.

@@ -23,9 +23,9 @@ func TestNewServerRejectsBadInputs(t *testing.T) {
 	}
 }
 
-// TestNewServerListsReadTools 跑 in-memory transport 上 server↔client
-// 全链路，验证 D8+D9 的 9 个只读 tool 都被注册。
-func TestNewServerListsReadTools(t *testing.T) {
+// TestNewServerListsTools 跑 in-memory transport 上 server↔client
+// 全链路，验证 D8+D9 的 9 个只读 tool + D10 agent_handshake 都被注册。
+func TestNewServerListsTools(t *testing.T) {
 	ctx := context.Background()
 	root, db := setupVaultWithIndex(t)
 	t.Cleanup(func() { _ = db.Close() })
@@ -37,6 +37,7 @@ func TestNewServerListsReadTools(t *testing.T) {
 
 	tools := listToolsViaTransport(t, ctx, server)
 	wantNames := map[string]bool{
+		"agent_handshake": false,
 		"wiki_info":       false,
 		"read_page":       false,
 		"read_raw":        false,
@@ -51,10 +52,16 @@ func TestNewServerListsReadTools(t *testing.T) {
 		if _, ok := wantNames[tool.Name]; ok {
 			wantNames[tool.Name] = true
 		}
+		if tool.Name == "agent_handshake" {
+			if tool.Annotations == nil || tool.Annotations.ReadOnlyHint {
+				t.Errorf("tool %q should have ReadOnlyHint=false", tool.Name)
+			}
+			continue
+		}
 		// mcp-tools.md §0 要求 9 个 read 类 tool 全部带 readOnlyHint: true，
-		// 让 MCP host 跳过 user confirmation。D8 只上 4 个，但每个都要打上。
+		// 让 MCP host 跳过 user confirmation。
 		if tool.Annotations == nil || !tool.Annotations.ReadOnlyHint {
-			t.Errorf("tool %q missing ReadOnlyHint=true annotation", tool.Name)
+			t.Errorf("read tool %q missing ReadOnlyHint=true annotation", tool.Name)
 		}
 	}
 	for name, found := range wantNames {

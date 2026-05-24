@@ -106,6 +106,67 @@ var files embed.FS
 
 </spec-entry>
 
+<spec-entry category="quality" keywords="mcp,agent-handshake,worktree,review-queue,bundles,sessions" date="2026-05-24" source="internal/mcp/tools.go:101;internal/worktree/worktree.go:40;internal/index/reviews.go:30;internal/index/bundles.go:27">
+
+## Scenario: W2 D10 agent handshake + worktree + review base contract
+
+### 1. Scope / Trigger
+- Trigger: adding or changing multi-agent write preparation: `agent_handshake`, git worktree allocation, session store, or `reviews` / `bundles` persistence.
+- Applies to `internal/mcp`, `internal/worktree`, `internal/index`, `internal/vault`, and `cmd/wikimind worktree`.
+
+### 2. Signatures
+- MCP: `agent_handshake(agent, version, session_id, capabilities, declares_schema_version) -> AgentHandshakeResult`.
+- Worktree: `CreateWorktree(ctx, vaultRoot, agent, sessionID)`, `RemoveWorktree(ctx, vaultRoot, agent, sessionID)`, `ListWorktrees(ctx, vaultRoot)`.
+- DB: `reviews(id, seq, bundle_id, agent, session_id, op, target_page_id, patch_path, status, created_at, decided_at, decided_by, meta_json)` and `bundles(id, seq, agent, session_id, summary, status, created_at, submitted_at, decided_at)`.
+- CLI: `wikimind worktree list` and `wikimind worktree remove <agent>/<session-id>`.
+
+### 3. Contracts
+- `agent_handshake` is registered with `ReadOnlyHint=false`; the 9 read tools remain `ReadOnlyHint=true`.
+- Allowed agents come from `.wikimind/config.toml allowed_agents`; empty or old configs fall back to `vault.DefaultAllowedAgents()`.
+- Schema compatibility is major-version only: `1.0` and `1.1` are compatible; `2.0` returns `accepted=false`, `accepted_capabilities=["read"]`, and `can_propose=false`.
+- A successful handshake creates `wiki/_worktrees/agent-<agent>-<session>/`, branch `wt-<agent>-<session>`, a `sk-` session token, fixed D10 rate limits, and queue state from `COUNT(*) WHERE reviews.status='pending'`.
+- Worktree IDs must match `^[A-Za-z0-9_-]{1,64}$`; worktree cleanup must remove both the worktree and branch.
+- `wiki/_worktrees/` must be gitignored in newly initialized vaults.
+
+### 4. Validation & Error Matrix
+- Agent not in whitelist -> `AGENT_NOT_WHITELISTED`.
+- Duplicate `(agent, session_id)` -> `SESSION_EXISTS`.
+- Repo has no commit -> worktree creation wraps `ErrEmptyRepo` as `WORKTREE_CREATE_FAILED`.
+- Pending reviews `>= 50` -> handshake accepted but `queue_state.can_propose=false`.
+- Unsafe agent/session path segment -> `ErrInvalidSessionID`.
+- Worktree directory manually deleted but git metadata remains -> `RemoveWorktree` must run `git worktree prune` before branch deletion.
+
+### 5. Good/Base/Bad Cases
+- Good: committed vault + `codex-cli/sess-1` handshake returns a token and `wiki/_worktrees/agent-codex-cli-sess-1/`.
+- Base: schema major mismatch returns a structured read-only result without creating a worktree.
+- Bad: creating a worktree before session duplicate detection leaves orphan worktrees on repeated handshakes.
+- Bad: deleting only the worktree directory can leave stale git metadata that blocks branch deletion.
+
+### 6. Tests Required
+- MCP server registration test asserts 10 tools, exactly `agent_handshake` is non-read-only.
+- Handshake tests cover happy path, whitelist rejection, schema read-only result, duplicate session, worktree failure, and queue full.
+- Worktree tests cover create/list/remove, duplicate create, unsafe IDs, empty repo, missing-directory cleanup with `worktree prune`, and write permission matrix.
+- Index tests cover review/bundle seq, insert, lookup, status list/count, and status update.
+- CLI tests cover `worktree list` empty/non-empty and `worktree remove`.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+```go
+_ = os.RemoveAll(worktreePath)
+_ = runGit(ctx, root, "branch", "-D", branch)
+```
+
+#### Correct
+```go
+if !pathExists(worktreePath) {
+    _, _ = runGit(ctx, root, "worktree", "prune")
+}
+_ = RemoveWorktree(ctx, root, agent, sessionID)
+```
+
+</spec-entry>
+
 <spec-entry category="quality" keywords="mcp,read-tools,anchor,quote-hash,search,graph,history" date="2026-05-24" source="internal/index/anchor.go:38;internal/index/anchor.go:76;internal/index/anchor.go:96;internal/mcp/server.go:79;internal/mcp/tools.go:359;internal/mcp/tools.go:488;internal/mcp/tools.go:591;internal/mcp/tools.go:620;internal/mcp/tools.go:676">
 
 ## Scenario: W2 D9 MCP read tools contract

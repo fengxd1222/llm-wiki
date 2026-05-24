@@ -23,9 +23,15 @@ var ErrInvalidConfig = errors.New("vault config is invalid")
 
 // Config mirrors .wikimind/config.toml.
 type Config struct {
-	VaultRoot     string `toml:"vault_root"`
-	SchemaVersion string `toml:"schema_version"`
-	CreatedAt     string `toml:"created_at"`
+	VaultRoot     string   `toml:"vault_root"`
+	SchemaVersion string   `toml:"schema_version"`
+	CreatedAt     string   `toml:"created_at"`
+	AllowedAgents []string `toml:"allowed_agents"`
+}
+
+// DefaultAllowedAgents returns the D10 default agent whitelist.
+func DefaultAllowedAgents() []string {
+	return []string{"claude-code", "codex-cli", "cursor", "cline", "opencode"}
 }
 
 // LoadConfig reads and validates the vault config rooted at vaultRoot.
@@ -105,6 +111,7 @@ func writeConfig(root string, createdAt time.Time) error {
 		VaultRoot:     root,
 		SchemaVersion: schema.Version,
 		CreatedAt:     createdAt.Format(time.RFC3339),
+		AllowedAgents: DefaultAllowedAgents(),
 	}
 	var buf bytes.Buffer
 	if err := toml.NewEncoder(&buf).Encode(cfg); err != nil {

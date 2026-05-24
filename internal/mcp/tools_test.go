@@ -93,6 +93,156 @@ func TestHandleWikiInfoSeededVault(t *testing.T) {
 	}
 }
 
+// --- agent_handshake ---
+
+func TestHandleAgentHandshakeHappyPath(t *testing.T) {
+	ctx := context.Background()
+	b, cleanup := newBackend(t)
+	t.Cleanup(cleanup)
+	commitVaultAll(t, ctx, b.root, "init")
+
+	got, err := b.handleAgentHandshake(ctx, AgentHandshakeArgs{
+		Agent:                 "codex-cli",
+		Version:               "0.1.0",
+		SessionID:             "sess-1",
+		Capabilities:          []string{"read", "propose"},
+		DeclaresSchemaVersion: "1.0",
+	})
+	if err != nil {
+		t.Fatalf("handleAgentHandshake: %v", err)
+	}
+	if !got.Accepted || got.SessionToken == "" {
+		t.Fatalf("handshake not accepted/token empty: %+v", got)
+	}
+	if got.Worktree != "wiki/_worktrees/agent-codex-cli-sess-1/" {
+		t.Fatalf("Worktree = %q", got.Worktree)
+	}
+	if got.DaemonSchemaVersion != "1.0" {
+		t.Fatalf("DaemonSchemaVersion = %q, want 1.0", got.DaemonSchemaVersion)
+	}
+	if got.QueueState.Pending != 0 || got.QueueState.HardLimit != 50 || !got.QueueState.CanPropose {
+		t.Fatalf("QueueState = %+v", got.QueueState)
+	}
+	if got.RateLimits.ProposePerMinute != 30 || got.RateLimits.QueryPerMinute != 60 {
+		t.Fatalf("RateLimits = %+v", got.RateLimits)
+	}
+	if _, err := os.Stat(filepath.Join(b.root, "wiki", "_worktrees", "agent-codex-cli-sess-1")); err != nil {
+		t.Fatalf("worktree path missing: %v", err)
+	}
+	sess, ok := b.sessionStore().Lookup(got.SessionToken)
+	if !ok || sess.Agent != "codex-cli" || sess.WorktreePath == "" {
+		t.Fatalf("session store lookup = %+v, %v", sess, ok)
+	}
+}
+
+func TestHandleAgentHandshakeRejectsUnwhitelistedAgent(t *testing.T) {
+	ctx := context.Background()
+	b, cleanup := newBackend(t)
+	t.Cleanup(cleanup)
+	rewriteAllowedAgents(t, b.root, `allowed_agents = ["claude-code"]`)
+
+	_, err := b.handleAgentHandshake(ctx, AgentHandshakeArgs{
+		Agent:                 "codex-cli",
+		Version:               "0.1.0",
+		SessionID:             "sess-1",
+		DeclaresSchemaVersion: "1.0",
+	})
+	if !errors.Is(err, ErrAgentNotWhitelisted) {
+		t.Fatalf("err = %v, want ErrAgentNotWhitelisted", err)
+	}
+}
+
+func TestHandleAgentHandshakeSchemaIncompatibleReadOnly(t *testing.T) {
+	ctx := context.Background()
+	b, cleanup := newBackend(t)
+	t.Cleanup(cleanup)
+
+	got, err := b.handleAgentHandshake(ctx, AgentHandshakeArgs{
+		Agent:                 "codex-cli",
+		Version:               "0.1.0",
+		SessionID:             "sess-1",
+		DeclaresSchemaVersion: "2.0",
+	})
+	if err != nil {
+		t.Fatalf("schema incompatible should return a structured result, err=%v", err)
+	}
+	if got.Accepted || got.QueueState.CanPropose {
+		t.Fatalf("schema incompatible result = %+v, want accepted=false/can_propose=false", got)
+	}
+	if len(got.AcceptedCapabilities) != 1 || got.AcceptedCapabilities[0] != "read" {
+		t.Fatalf("AcceptedCapabilities = %+v, want [read]", got.AcceptedCapabilities)
+	}
+}
+
+func TestHandleAgentHandshakeDuplicateSession(t *testing.T) {
+	ctx := context.Background()
+	b, cleanup := newBackend(t)
+	t.Cleanup(cleanup)
+	commitVaultAll(t, ctx, b.root, "init")
+	args := AgentHandshakeArgs{
+		Agent:                 "claude-code",
+		Version:               "0.1.0",
+		SessionID:             "sess-A",
+		DeclaresSchemaVersion: "1.0",
+	}
+	if _, err := b.handleAgentHandshake(ctx, args); err != nil {
+		t.Fatalf("first handshake: %v", err)
+	}
+	if _, err := b.handleAgentHandshake(ctx, args); !errors.Is(err, ErrSessionExists) {
+		t.Fatalf("second handshake err = %v, want ErrSessionExists", err)
+	}
+}
+
+func TestHandleAgentHandshakeWorktreeFailure(t *testing.T) {
+	ctx := context.Background()
+	b, cleanup := newBackend(t)
+	t.Cleanup(cleanup)
+
+	_, err := b.handleAgentHandshake(ctx, AgentHandshakeArgs{
+		Agent:                 "codex-cli",
+		Version:               "0.1.0",
+		SessionID:             "sess-1",
+		DeclaresSchemaVersion: "1.0",
+	})
+	if !errors.Is(err, ErrWorktreeCreateFailed) {
+		t.Fatalf("err = %v, want ErrWorktreeCreateFailed", err)
+	}
+}
+
+func TestHandleAgentHandshakeQueueFull(t *testing.T) {
+	ctx := context.Background()
+	b, cleanup := newBackend(t)
+	t.Cleanup(cleanup)
+	commitVaultAll(t, ctx, b.root, "init")
+	for i := 1; i <= 50; i++ {
+		if err := index.InsertReview(ctx, b.db, &index.ReviewRow{
+			ID:        index.ReviewID(i),
+			Seq:       i,
+			Agent:     "codex-cli",
+			SessionID: "old",
+			Op:        "propose_edit",
+			PatchPath: "wiki/_review/" + index.ReviewID(i) + ".patch",
+			Status:    "pending",
+			CreatedAt: "2026-05-24T12:00:00Z",
+		}); err != nil {
+			t.Fatalf("seed review %d: %v", i, err)
+		}
+	}
+
+	got, err := b.handleAgentHandshake(ctx, AgentHandshakeArgs{
+		Agent:                 "codex-cli",
+		Version:               "0.1.0",
+		SessionID:             "sess-full",
+		DeclaresSchemaVersion: "1.0",
+	})
+	if err != nil {
+		t.Fatalf("handleAgentHandshake: %v", err)
+	}
+	if !got.Accepted || got.QueueState.Pending != 50 || got.QueueState.CanPropose {
+		t.Fatalf("QueueState = %+v, want accepted pending=50 can_propose=false", got.QueueState)
+	}
+}
+
 // --- read_page ---
 
 // TestHandleReadPageByID 用 reindex 后的 page id 查；命中 + frontmatter 透传。
@@ -894,6 +1044,43 @@ func runGitAddCommit(ctx context.Context, root, rel, message string) error {
 		"-c", "user.email=wikimind-test@localhost",
 		"commit", "-m", message)
 	return err
+}
+
+func commitVaultAll(t *testing.T, ctx context.Context, root, message string) {
+	t.Helper()
+	if _, err := runVaultGit(ctx, root, "add", "."); err != nil {
+		t.Fatalf("git add .: %v", err)
+	}
+	if _, err := runVaultGit(ctx, root,
+		"-c", "user.name=WikiMind Test",
+		"-c", "user.email=wikimind-test@localhost",
+		"commit", "-m", message); err != nil {
+		t.Fatalf("git commit: %v", err)
+	}
+}
+
+func rewriteAllowedAgents(t *testing.T, root, line string) {
+	t.Helper()
+	path := filepath.Join(root, ".wikimind", "config.toml")
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read config: %v", err)
+	}
+	lines := strings.Split(string(body), "\n")
+	replaced := false
+	for i, l := range lines {
+		if strings.HasPrefix(l, "allowed_agents") {
+			lines[i] = line
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		lines = append(lines, line)
+	}
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
 }
 
 // pageTypeFromPath 把 wiki/claims/x.md → "claim"；让 seedClaim 复用同一 helper

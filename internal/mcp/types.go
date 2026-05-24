@@ -1,5 +1,39 @@
 package mcp
 
+// AgentHandshakeArgs 镜像 mcp-tools.md §1 agent_handshake input。
+type AgentHandshakeArgs struct {
+	Agent                 string   `json:"agent" jsonschema:"agent name"`
+	Version               string   `json:"version" jsonschema:"agent semver"`
+	SessionID             string   `json:"session_id" jsonschema:"client-generated session id"`
+	Capabilities          []string `json:"capabilities,omitempty" jsonschema:"read|propose|lint|merge"`
+	DeclaresSchemaVersion string   `json:"declares_schema_version" jsonschema:"declared schema version, e.g. 1.0"`
+}
+
+// RateLimitsBlock mirrors the staged D10 handshake rate limits response.
+type RateLimitsBlock struct {
+	ProposePerMinute int `json:"propose_per_minute"`
+	QueryPerMinute   int `json:"query_per_minute"`
+}
+
+// QueueStateBlock mirrors the staged D10 review queue state response.
+type QueueStateBlock struct {
+	Pending    int  `json:"pending"`
+	HardLimit  int  `json:"hard_limit"`
+	CanPropose bool `json:"can_propose"`
+}
+
+// AgentHandshakeResult 镜像 mcp-tools.md §1 agent_handshake response。
+type AgentHandshakeResult struct {
+	Accepted             bool            `json:"accepted"`
+	DaemonSchemaVersion  string          `json:"daemon_schema_version"`
+	Worktree             string          `json:"worktree,omitempty"`
+	InstructionsToRead   []string        `json:"instructions_to_read"`
+	SessionToken         string          `json:"session_token,omitempty"`
+	RateLimits           RateLimitsBlock `json:"rate_limits"`
+	QueueState           QueueStateBlock `json:"queue_state"`
+	AcceptedCapabilities []string        `json:"accepted_capabilities,omitempty"`
+}
+
 // 本文件定义只读 tool 的 Request / Response 类型。
 //
 // 字段命名与 spec-v2/docs/mcp-tools.md §2-4 §7 的 JSON schema 一一对应。

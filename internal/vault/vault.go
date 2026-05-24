@@ -66,6 +66,9 @@ func Init(root string) (*InitResult, error) {
 	if err := writeInitialWikiFiles(absRoot); err != nil {
 		return nil, err
 	}
+	if err := writeVaultGitignore(absRoot); err != nil {
+		return nil, err
+	}
 	if err := initGitIfNeeded(absRoot); err != nil {
 		return nil, err
 	}
@@ -167,6 +170,7 @@ func createDirectories(root string) error {
 		"wiki/topics",
 		"wiki/_review",
 		"wiki/_reports",
+		"wiki/_worktrees",
 		"schema",
 		".wikimind/audit",
 		".wikimind/locks",
@@ -188,6 +192,20 @@ func writeInitialWikiFiles(root string) error {
 		if err := os.WriteFile(filepath.Join(root, rel), []byte(body), 0o644); err != nil {
 			return fmt.Errorf("write %s: %w", rel, err)
 		}
+	}
+	return nil
+}
+
+func writeVaultGitignore(root string) error {
+	body := strings.Join([]string{
+		".wikimind/index.db",
+		".wikimind/index.db-*",
+		".wikimind/*.bak",
+		"wiki/_worktrees/",
+		"",
+	}, "\n")
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte(body), 0o644); err != nil {
+		return fmt.Errorf("write .gitignore: %w", err)
 	}
 	return nil
 }
