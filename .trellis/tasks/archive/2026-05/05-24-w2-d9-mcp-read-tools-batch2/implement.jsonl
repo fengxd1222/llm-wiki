@@ -1,0 +1,8 @@
+{"file": "spec-v2/docs/roadmap-30d.md", "reason": "D9 范围 + W2 出口"}
+{"file": "spec-v2/docs/mcp-tools.md", "reason": "§5 §6 §8 §9 §10 五个 read tool 权威 schema + response shape"}
+{"file": "spec-v2/docs/agent-protocol.md", "reason": "quote_hash 防伪机制 + protocol 错误码"}
+{"file": "spec-v2/docs/cjk-tokenizer.md", "reason": "search 路由 + heading slug 中文保留"}
+{"file": "spec-v2/docs/architecture.md", "reason": "§3.2 query 流程 + §4.2 raw/wiki 分层（read_raw_anchor 不污染 page 模型）"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量基准 + D6 spec-entry git/log 规则（get_history 复用）"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "sentinel error + path traversal + anchor 解析错误传播"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "pages 表 + sources 表查询规范"}

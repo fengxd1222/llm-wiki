@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量基准 + D6 git/log spec-entry"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "校验 anchor 错误 + traversal 防护 + sentinel"}
+{"file": "spec-v2/docs/mcp-tools.md", "reason": "校验 5 tool response shape 严格匹配 §5 §6 §8 §9 §10"}
+{"file": "spec-v2/docs/cjk-tokenizer.md", "reason": "校验 search filter 路由 + heading slug CJK 处理"}
