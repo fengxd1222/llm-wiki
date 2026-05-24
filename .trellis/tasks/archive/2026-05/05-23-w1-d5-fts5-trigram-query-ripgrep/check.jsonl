@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量基准"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "校验错误处理合规"}
+{"file": "spec-v2/docs/cjk-tokenizer.md", "reason": "校验短查询 / 正则 / --no-index 路由符合 §3.3"}
+{"file": "spec-v2/docs/architecture.md", "reason": "校验 query 实现符合 §3.2"}

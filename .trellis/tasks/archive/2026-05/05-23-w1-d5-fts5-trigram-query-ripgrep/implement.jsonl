@@ -1,0 +1,7 @@
+{"file": "spec-v2/docs/roadmap-30d.md", "reason": "D5 任务范围与验收边界"}
+{"file": "spec-v2/docs/cjk-tokenizer.md", "reason": "§3.3 短查询 LIKE / 正则 ripgrep / --no-index 路由策略"}
+{"file": "spec-v2/docs/architecture.md", "reason": "§3.2 Query 流程（D5 只实现 FTS5 部分）"}
+{"file": "spec-v2/docs/engineering-decisions.md", "reason": "§4.3 ripgrep 兜底（外部二进制可缺）+ 模块划分"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "数据库访问规范"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "错误处理规范"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量基准"}
