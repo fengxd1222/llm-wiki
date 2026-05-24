@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量基准 + 既有 W1/W2 scenario"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "校验 10+ 新 sentinel error + 错误码字符串映射 (SESSION_REQUIRED/SCHEMA_VIOLATION/...)"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "校验 reviews/bundles SQL 参数化 + meta_json 操作 + idempotency 查询正确性"}
+{"file": "spec-v2/docs/mcp-tools.md", "reason": "校验 5 tool response shape 严格匹配 §11-13 §16 §19"}
+{"file": "spec-v2/docs/agent-protocol.md", "reason": "校验 worktree → patch → review 流程符合 §4.3 + session 校验合规"}

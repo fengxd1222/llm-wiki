@@ -1,0 +1,8 @@
+{"file": "spec-v2/docs/roadmap-30d.md", "reason": "D11 范围 + W2 出口"}
+{"file": "spec-v2/docs/mcp-tools.md", "reason": "§11 propose_page §12 propose_edit §13 propose_claim §16 request_review §19 log_append 权威 schema"}
+{"file": "spec-v2/docs/agent-protocol.md", "reason": "§4.3 worktree → main 合并路径 + 错误码语义"}
+{"file": "spec-v2/docs/architecture.md", "reason": "§3.3 review accept 流程 (D12 实施前置) + §2.3 single-writer commit loop"}
+{"file": "spec-v2/docs/claim-extraction.md", "reason": "claim source 与 quote_hash 校验语义"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量基准 + D6/D9 既有 scenario (commit + log)"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "10+ 新错误码 sentinel + path injection 防御 + %w wrap"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "reviews/bundles 表查询 + meta_json LIKE 模式"}
