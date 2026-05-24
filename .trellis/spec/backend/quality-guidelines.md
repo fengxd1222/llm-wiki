@@ -353,3 +353,45 @@ logEntry, _ := commit.Commit(ctx, vaultRoot, "revert", summary, paths)
 ```
 
 </spec-entry>
+
+<spec-entry category="quality" keywords="git,init,default-branch,cross-platform,ci" date="2026-05-24" source="internal/commit/git.go:40;internal/proposal/patch.go:49">
+
+## Scenario: Cross-platform git init default branch
+
+### 1. Scope / Trigger
+- Trigger: any code that calls `git init` or references a branch name (e.g. `main`) in diff/log commands.
+- Applies to `internal/commit`, `internal/proposal`, and any future git-init or branch-aware code.
+
+### 2. Contracts
+- `git init` MUST use `--initial-branch=main` to guarantee a consistent branch name across all platforms (macOS, Linux, Windows). Without it, the default depends on the user's `init.defaultBranch` config — CI machines typically lack this setting and fall back to `master`.
+- Code that references a branch name for diff/log operations MUST NOT hardcode `"main"`. Use a runtime detection helper (`defaultBaseRef`) that probes `main → master → HEAD~1` via `git rev-parse --verify`.
+- `EnsureRepo` must normalize existing repos: if current branch is `master` and `main` doesn't exist, rename via `git branch -M main`. Other custom branch names are left alone.
+
+### 3. Good/Bad Cases
+- Good: `runGit(ctx, root, "init", "--initial-branch=main")` — deterministic on all platforms.
+- Good: `defaultBaseRef(ctx, root)` returns whichever of `main`/`master` actually exists.
+- Bad: `runGit(ctx, root, "init")` — creates `master` on CI, `main` on dev machines with config.
+- Bad: `runGit(ctx, root, "diff", "--cached", "main", "--", path)` — fails on repos where only `master` exists.
+
+### 4. Tests Required
+- `TestEnsureRepoCreatesMainBranch`: fresh dir → EnsureRepo → branch is `main`.
+- `TestEnsureRepoRenamesMasterToMain`: init with `master` → EnsureRepo → branch becomes `main`.
+- `TestEnsureRepoIdempotentOnMain`: already `main` → EnsureRepo → no-op.
+- CI smoke test must assert `symbolic-ref --short HEAD == "main"` after vault init.
+
+### 5. Wrong vs Correct
+
+#### Wrong
+```go
+runGit(ctx, root, "init")
+out, _ := runGit(ctx, root, "diff", "--cached", "main", "--", path)
+```
+
+#### Correct
+```go
+runGit(ctx, root, "init", "--initial-branch=main")
+baseRef := defaultBaseRef(ctx, root) // probes main → master → HEAD~1
+out, _ := runGit(ctx, root, "diff", "--cached", baseRef, "--", path)
+```
+
+</spec-entry>
