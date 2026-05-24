@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
+	"github.com/fengxd1222/llm-wiki/internal/commit"
 	"github.com/fengxd1222/llm-wiki/internal/index"
 	"github.com/fengxd1222/llm-wiki/internal/service"
 	"github.com/fengxd1222/llm-wiki/internal/vault"
@@ -30,7 +33,8 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 	cmd.AddCommand(newIngestCommand(stdout))
 	cmd.AddCommand(newPageCommand(stdout))
 	cmd.AddCommand(newQueryCommand(stdout))
-	for _, name := range []string{"review", "lint", "revert"} {
+	cmd.AddCommand(newRevertCommand(stdout, os.Stdin))
+	for _, name := range []string{"review", "lint"} {
 		cmd.AddCommand(newStubCommand(stdout, name))
 	}
 	return cmd
@@ -363,6 +367,93 @@ type searchHitJSON struct {
 	Snippet string  `json:"snippet"`
 	Score   float64 `json:"score"`
 	Source  string  `json:"source"`
+}
+
+// newRevertCommand 实现 W1 D6 的 `wikimind revert <seq>`：
+//
+//  1. NextSeq 反查 origEntry（友好错误）
+//  2. FindCommitBySeq 用 commit message "(seq=<N>)" 反找原 commit short SHA
+//  3. （除非 --no-confirm）stdin 二次确认
+//  4. git revert --no-commit <sha> 应用反向 patch
+//  5. commit.Commit 把反向 patch + op=revert log 行放进同一个 seq-tagged commit
+func newRevertCommand(stdout io.Writer, stdin io.Reader) *cobra.Command {
+	var noConfirm bool
+	cmd := &cobra.Command{
+		Use:   "revert <seq>",
+		Short: "Revert a previous wikimind commit by change-log seq",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			seq, err := strconv.Atoi(strings.TrimSpace(args[0]))
+			if err != nil || seq <= 0 {
+				return fmt.Errorf("revert: seq must be a positive integer, got %q", args[0])
+			}
+
+			start, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("resolve working directory: %w", err)
+			}
+			vaultRoot, err := vault.FindRoot(start)
+			if err != nil {
+				return err
+			}
+
+			origEntry, err := commit.ReadEntryBySeq(vaultRoot, seq)
+			if err != nil {
+				if errors.Is(err, commit.ErrSeqNotFound) {
+					return fmt.Errorf("revert: no change-log entry for seq=%d", seq)
+				}
+				return err
+			}
+
+			origSHA, err := commit.FindCommitBySeq(cmd.Context(), vaultRoot, seq)
+			if err != nil {
+				return fmt.Errorf("revert: cannot locate commit for seq=%d: %w", seq, err)
+			}
+
+			fmt.Fprintf(stdout, "revert seq=%d (commit=%s op=%s summary=%s)\n",
+				seq, origSHA, origEntry.Op, origEntry.Summary)
+
+			if !noConfirm {
+				if !confirmYes(stdout, stdin, "proceed? [y/N]: ") {
+					fmt.Fprintln(stdout, "aborted")
+					return nil
+				}
+			}
+
+			revertedPaths, err := commit.GitRevertNoCommit(cmd.Context(), vaultRoot, origSHA)
+			if err != nil {
+				return fmt.Errorf("revert: git revert failed: %w", err)
+			}
+
+			summary := fmt.Sprintf("revert seq=%d (orig %s)", seq, origEntry.Op)
+			logEntry, err := commit.Commit(cmd.Context(), vaultRoot, "revert", summary, revertedPaths)
+			if err != nil {
+				return fmt.Errorf("revert: write change log: %w", err)
+			}
+
+			fmt.Fprintf(stdout, "reverted: %s -> %s (new seq=%d)\n",
+				origSHA, logEntry.GitSHA, logEntry.Seq)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&noConfirm, "no-confirm", false, "skip stdin confirmation prompt")
+	return cmd
+}
+
+// confirmYes 从 stdin 读一行，仅 "y" / "yes"（大小写不敏感）视为同意。
+// stdin 不可读（CI 无 tty）时返回 false——配 --no-confirm 一起用。
+func confirmYes(stdout io.Writer, stdin io.Reader, prompt string) bool {
+	if stdin == nil {
+		return false
+	}
+	fmt.Fprint(stdout, prompt)
+	reader := bufio.NewReader(stdin)
+	line, err := reader.ReadString('\n')
+	if err != nil && line == "" {
+		return false
+	}
+	answer := strings.ToLower(strings.TrimSpace(line))
+	return answer == "y" || answer == "yes"
 }
 
 func newStubCommand(stdout io.Writer, name string) *cobra.Command {

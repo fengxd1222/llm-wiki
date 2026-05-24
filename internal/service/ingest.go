@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fengxd1222/llm-wiki/internal/commit"
 	"github.com/fengxd1222/llm-wiki/internal/index"
 )
 
@@ -32,6 +33,9 @@ type IngestResult struct {
 	Source    *index.SourceRow
 	Duplicate bool // 命中已有 sha256，未新写入。
 	WrittenTo string
+	// LogEntry 是本次 ingest 触发的 commit log（含 seq / git short sha）。
+	// Duplicate=true 时为 nil（去重路径不 commit）。
+	LogEntry *commit.LogEntry
 }
 
 // IngestFile 把外部文件复制到 vaultRoot/raw/inbox/<basename>，
@@ -93,7 +97,16 @@ func IngestFile(
 		_ = os.Remove(destAbs)
 		return nil, err
 	}
-	return &IngestResult{Source: row, WrittenTo: destAbs}, nil
+
+	// D6: 触发 auto-commit。raw_id 已是 vault-relative POSIX 路径，可直接交给 git add。
+	// commit 失败不回滚 source row / 文件——sources 表是 derived state，可通过
+	// reconcile/rebuild 修；commit 失败时下次 ingest 会和 prev log 行一起带走。
+	entry, err := commit.Commit(ctx, vaultRoot, "ingest", row.RawID, []string{row.RawID})
+	if err != nil {
+		return nil, fmt.Errorf("auto-commit ingest %s: %w", row.RawID, err)
+	}
+
+	return &IngestResult{Source: row, WrittenTo: destAbs, LogEntry: entry}, nil
 }
 
 // validateVaultRoot 确认 vaultRoot 指向一个已存在的目录。

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/fengxd1222/llm-wiki/internal/commit"
 	"github.com/fengxd1222/llm-wiki/internal/vault"
 )
 
@@ -85,6 +86,16 @@ func TestIngestCommand(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(vaultRoot, "raw", "inbox", "sample.md")); err != nil {
 		t.Fatalf("ingested file missing: %v", err)
 	}
+	entry, err := commit.ReadEntryBySeq(vaultRoot, 1)
+	if err != nil {
+		t.Fatalf("ingest change-log missing: %v", err)
+	}
+	if entry.Op != "ingest" || entry.Summary != "raw/inbox/sample.md" {
+		t.Fatalf("change-log entry = %+v, want ingest raw/inbox/sample.md", entry)
+	}
+	if _, err := commit.FindCommitBySeq(cmd.Context(), vaultRoot, 1); err != nil {
+		t.Fatalf("ingest commit missing seq=1: %v", err)
+	}
 
 	// Second ingest of same file → duplicate marker, no second copy under a different name.
 	out.Reset()
@@ -96,10 +107,17 @@ func TestIngestCommand(t *testing.T) {
 	if !strings.Contains(out.String(), "duplicate: raw/inbox/sample.md") {
 		t.Fatalf("second ingest output missing duplicate marker:\n%s", out.String())
 	}
+	nextSeq, err := commit.NextSeq(vaultRoot)
+	if err != nil {
+		t.Fatalf("NextSeq after duplicate: %v", err)
+	}
+	if nextSeq != 2 {
+		t.Fatalf("NextSeq after duplicate = %d, want 2", nextSeq)
+	}
 }
 
 func TestStubCommands(t *testing.T) {
-	for _, name := range []string{"review", "lint", "revert"} {
+	for _, name := range []string{"review", "lint"} {
 		var out bytes.Buffer
 		cmd := newRootCommand(&out, &out)
 		cmd.SetArgs([]string{name})
@@ -110,6 +128,76 @@ func TestStubCommands(t *testing.T) {
 		if out.String() != want {
 			t.Fatalf("%s output = %q, want %q", name, out.String(), want)
 		}
+	}
+}
+
+func TestRevertCommand(t *testing.T) {
+	tempDir := t.TempDir()
+	vaultRoot := filepath.Join(tempDir, "vault")
+	if _, err := vault.Init(vaultRoot); err != nil {
+		t.Fatalf("vault.Init: %v", err)
+	}
+	srcPath := filepath.Join(tempDir, "sample.md")
+	if err := os.WriteFile(srcPath, []byte("# Sample\n"), 0o644); err != nil {
+		t.Fatalf("seed source: %v", err)
+	}
+	t.Chdir(vaultRoot)
+
+	var out bytes.Buffer
+	cmd := newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"ingest", srcPath})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("ingest Execute() error = %v\nout=%s", err, out.String())
+	}
+	rawPath := filepath.Join(vaultRoot, "raw", "inbox", "sample.md")
+	if _, err := os.Stat(rawPath); err != nil {
+		t.Fatalf("raw file missing after ingest: %v", err)
+	}
+
+	out.Reset()
+	cmd = newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"revert", "1", "--no-confirm"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("revert Execute() error = %v\nout=%s", err, out.String())
+	}
+	if !strings.Contains(out.String(), "new seq=2") {
+		t.Fatalf("revert output missing new seq:\n%s", out.String())
+	}
+	if _, err := os.Stat(rawPath); !os.IsNotExist(err) {
+		t.Fatalf("raw file after revert err = %v, want not exist", err)
+	}
+	entry1, err := commit.ReadEntryBySeq(vaultRoot, 1)
+	if err != nil {
+		t.Fatalf("seq=1 log entry missing after revert: %v", err)
+	}
+	if entry1.Op != "ingest" {
+		t.Fatalf("seq=1 Op = %q, want ingest", entry1.Op)
+	}
+	entry2, err := commit.ReadEntryBySeq(vaultRoot, 2)
+	if err != nil {
+		t.Fatalf("seq=2 log entry missing: %v", err)
+	}
+	if entry2.Op != "revert" {
+		t.Fatalf("seq=2 Op = %q, want revert", entry2.Op)
+	}
+
+	// revert of revert：seq=2 必须指向内容反转 commit，而不是 log-only commit。
+	// raw 文件应恢复，且 log 保持 append-only。
+	out.Reset()
+	cmd = newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"revert", "2", "--no-confirm"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("revert of revert Execute() error = %v\nout=%s", err, out.String())
+	}
+	if _, err := os.Stat(rawPath); err != nil {
+		t.Fatalf("raw file missing after revert of revert: %v", err)
+	}
+	entry3, err := commit.ReadEntryBySeq(vaultRoot, 3)
+	if err != nil {
+		t.Fatalf("seq=3 log entry missing: %v", err)
+	}
+	if entry3.Op != "revert" {
+		t.Fatalf("seq=3 Op = %q, want revert", entry3.Op)
 	}
 }
 
