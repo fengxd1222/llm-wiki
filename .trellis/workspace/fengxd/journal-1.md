@@ -369,3 +369,37 @@ Implemented agent_handshake, git worktree per agent, reviews/bundles persistence
 ### Next Steps
 
 - None - task complete
+
+
+## Session 12: D11 MCP 写工具与 review 提交流
+
+**Date**: 2026-05-24
+**Task**: D11 MCP 写工具与 review 提交流
+**Branch**: `main`
+
+### Summary
+
+实现 propose_page/propose_edit/propose_claim、request_review、log_append，补齐 proposal 校验与 patch 工具，记录 D11 写工具契约并通过 Go 全量 test/build/vet。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c9e3033` | (see git log) |
+| `8023e52` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

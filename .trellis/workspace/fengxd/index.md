@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 11
+- **Total Sessions**: 12
 - **Last Active**: 2026-05-24
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~371 | Active |
+| `journal-1.md` | ~405 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 12 | 2026-05-24 | D11 MCP 写工具与 review 提交流 | `c9e3033`, `8023e52` | `main` |
 | 11 | 2026-05-24 | W2 D10 handshake worktree review base | `5eebd8d` | `main` |
 | 10 | 2026-05-24 | W2 D9: MCP read tools 第二批 (5 tool + stage-2 anchor parser) | `b74f63a` | `main` |
 | 9 | 2026-05-24 | W2 D8: MCP server stdio + 4 个只读 tool | `13511a0` | `main` |
