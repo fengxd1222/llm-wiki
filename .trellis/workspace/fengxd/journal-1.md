@@ -270,3 +270,36 @@ migrations/0002 加 pages 表（含 body 列供 trigger 读）+ pages_fts(trigra
 ### Next Steps
 
 - None - task complete
+
+
+## Session 9: W2 D8: MCP server stdio + 4 个只读 tool
+
+**Date**: 2026-05-24
+**Task**: W2 D8: MCP server stdio + 4 个只读 tool
+**Branch**: `main`
+
+### Summary
+
+新建 internal/mcp/ 包 (server/tools/types/2 test)：modelcontextprotocol/go-sdk v1.6.1 NewServer + ToolHandlerFor 泛型 wrapHandler adapter，注册 4 个 read tool (wiki_info/read_page/read_raw/list_index)，全部 ReadOnlyHint=true。严格按 spec-v2/docs/mcp-tools.md §2-4 §7 schema。read_page by id/by path 两路 Frontmatter 统一。read_raw 双层 path traversal 防护 (prefix raw/ + ResolveInVault) + text/binary 嗅探。list_index total = 过滤后总数。CLI wikimind mcp serve 子命令 (stderr-only logging 不污染 protocol stream) + SIGINT/SIGTERM 优雅退出 + --vault flag。docs/demo/mcp-inspector.md 手动验收脚本。trellis-check 修 4 真问题 (ReadOnlyHint spec 漏 / Frontmatter 不一致 / 2 gofmt)。CI 5 OS 全绿, 129 测试 PASS (+23), race-clean。W2 第一公里打通: Claude Code 经 MCP 读 vault。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `13511a0` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
