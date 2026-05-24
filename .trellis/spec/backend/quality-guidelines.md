@@ -106,6 +106,74 @@ var files embed.FS
 
 </spec-entry>
 
+<spec-entry category="quality" keywords="mcp,write-tools,proposal,review-queue,session-token,content-hash,log-append" date="2026-05-24" source="internal/mcp/types.go:37;internal/mcp/tools.go:205;internal/mcp/tools.go:255;internal/mcp/tools.go:307;internal/mcp/tools.go:396;internal/mcp/tools.go:468;internal/proposal/patch.go:21;internal/proposal/validator.go:48">
+
+## Scenario: W2 D11 MCP propose tools + review queue contract
+
+### 1. Scope / Trigger
+- Trigger: adding or changing MCP write tools, proposal patch generation, content-hash compare-and-set, review bundle submission, or the direct append-only log path.
+- Applies to `internal/mcp`, `internal/proposal`, `internal/index/reviews.go`, `internal/index/bundles.go`, and `internal/commit`.
+
+### 2. Signatures
+- MCP write tools: `propose_page`, `propose_edit`, `propose_claim`, `request_review`, and `log_append`; all require `session_token` from `agent_handshake` and must register with `ReadOnlyHint=false`.
+- `read_page` must return `content_hash`; `propose_edit(page_id, base_hash, patch)` validates that hash against the current `main:<path>` page before staging a patch.
+- Proposal helpers: `StagePath(ctx, worktreeRoot, path)`, `GeneratePatch(ctx, worktreeRoot, branch, path)`, `ApplyPatch(ctx, worktreeRoot, patch)`, and `WritePatchFile(ctx, vaultRoot, reviewID, patch)`.
+- DB helpers: `FindReviewByIdempotencyKey(ctx, db, agent, key)`, `AssignReviewsToBundle(ctx, db, bundleID, reviewIDs)`, and `CountBundlesByStatus(ctx, db, status)`.
+- Direct audit writes: `commit.CommitWithActor(ctx, vaultRoot, actor, op, summary, files)`.
+
+### 3. Contracts
+- Write handlers authenticate first via `SessionStore.Authenticate`; missing, unknown, or expired tokens return `ErrSessionRequired`.
+- Idempotency is scoped to `(agent, idempotency_key)` and returns the existing review before touching the worktree.
+- `propose_page` and `propose_claim` write encoded Markdown into the session worktree, stage only the target vault-relative path, generate a staged diff against `main`, write `wiki/_review/r-NNNN.patch` with `O_EXCL`, and insert a pending `reviews` row.
+- `propose_edit` supports `unified_diff` and `frontmatter_changes/body`; both paths end by storing the final target-path patch in the review queue.
+- `propose_claim` claim IDs match `cl-YYYY-MM-DD-NNN`; source provenance must be one hop into `raw/`, and quote hashes are recomputed with `index.ResolveAnchor` plus `index.QuoteHash`.
+- `request_review` may bundle only pending, unbundled reviews from the same `(agent, session_id)`; it creates a submitted bundle and assigns `reviews.bundle_id`.
+- `log_append` bypasses the review queue and immediately commits an append-only change-log entry with actor set to the authenticated agent.
+
+### 4. Validation & Error Matrix
+- Missing/expired `session_token` -> `ErrSessionRequired`.
+- Page path outside its type prefix or path traversal -> `ErrPathNotAllowed`.
+- Missing title/type mismatch, invalid claim ID/status/confidence, invalid review kind/priority, invalid log category/message length -> `ErrSchemaViolation`.
+- `propose_edit.base_hash` empty, stale, or page missing on `main` -> `ErrBaseHashMismatch`.
+- Claim source outside `raw/` -> `ErrProvenanceDepthExceeded`; anchor quote hash drift -> `ErrQuoteHashMismatch`.
+- Empty final diff -> `ErrNoChanges`; patch file already exists -> `ErrPatchExists`; `git apply --index` failure -> `ErrPatchApplyFailed`.
+- Cross-session bundling -> `CROSS_SESSION_BUNDLE`; already bundled review -> `REVIEW_ALREADY_BUNDLED`.
+
+### 5. Good/Base/Bad Cases
+- Good: handshake, read_page, propose_edit with matching `content_hash`, request_review, then later D12 accept merges the stored patch.
+- Good: repeated propose with the same idempotency key returns the first `review_id` and does not rewrite the patch file.
+- Base: speculation claims may omit sources only when `speculation=true`; otherwise at least one verified raw source is required.
+- Bad: applying an agent write directly to `main` through a propose tool; only `log_append` may direct-commit in D11.
+- Bad: bundling reviews by ID without checking agent/session ownership; this lets one session submit another session's pending work.
+
+### 6. Tests Required
+- Server registration asserts 15 total tools and all 6 write tools (`agent_handshake` plus D11 tools) are non-read-only.
+- Proposal tests cover patch generation/no-change, exclusive patch writes, path/schema/base-hash/source/hash validation, and stable content hashes.
+- MCP handler tests cover happy and bad paths for `propose_page`, `propose_edit` both patch modes, `propose_claim`, `request_review`, and `log_append`.
+- Full project checks required after changes: `go test ./...`, `go build ./...`, and `go vet ./...`.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+```go
+patch, _ := proposal.GeneratePatch(ctx, vaultRoot, sess.Branch, path)
+_ = index.AssignReviewsToBundle(ctx, db, bundleID, reviewIDs)
+```
+
+#### Correct
+```go
+_ = proposal.StagePath(ctx, sess.WorktreePath, path)
+patch, _ := proposal.GeneratePatch(ctx, sess.WorktreePath, sess.Branch, path)
+for _, id := range reviewIDs {
+    review, _ := index.GetReviewByID(ctx, db, id)
+    if review.Agent != sess.Agent || review.SessionID != sess.SessionID {
+        return errors.New("CROSS_SESSION_BUNDLE")
+    }
+}
+```
+
+</spec-entry>
+
 <spec-entry category="quality" keywords="mcp,agent-handshake,worktree,review-queue,bundles,sessions" date="2026-05-24" source="internal/mcp/tools.go:101;internal/worktree/worktree.go:40;internal/index/reviews.go:30;internal/index/bundles.go:27">
 
 ## Scenario: W2 D10 agent handshake + worktree + review base contract
