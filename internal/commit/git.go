@@ -28,8 +28,8 @@ const (
 
 // EnsureRepo 在 vaultRoot 下确认（或建立）git 仓库。
 //
-// 已是 git work tree（含子目录情况）→ no-op。
-// 不是仓库 → 自动 `git init`，与 vault.Init 行为一致。
+// 已是 git work tree（含子目录情况）→ normalize branch 后 no-op。
+// 不是仓库 → 自动 `git init --initial-branch=main`，与 vault.Init 行为一致。
 // git 缺失 → ErrGitMissing。
 func EnsureRepo(ctx context.Context, vaultRoot string) error {
 	if _, err := exec.LookPath(gitExe); err != nil {
@@ -37,10 +37,44 @@ func EnsureRepo(ctx context.Context, vaultRoot string) error {
 	}
 	ok, err := isInsideGitWorkTree(ctx, vaultRoot)
 	if err == nil && ok {
+		if err := ensureMainBranch(ctx, vaultRoot); err != nil {
+			return fmt.Errorf("ensure main branch: %w", err)
+		}
 		return nil
 	}
-	if _, err := runGit(ctx, vaultRoot, "init"); err != nil {
+	if _, err := runGit(ctx, vaultRoot, "init", "--initial-branch=main"); err != nil {
 		return fmt.Errorf("git init: %w", err)
+	}
+	return nil
+}
+
+// ensureMainBranch normalizes the current branch to "main" when possible.
+//
+// Rules:
+//   - Current branch already "main" → no-op
+//   - Current branch is "master" and "main" does not exist → rename master → main
+//   - Otherwise → no-op (respect user's custom branch name)
+//
+// Works on unborn HEAD (fresh init without commits) — git branch -M handles it.
+func ensureMainBranch(ctx context.Context, vaultRoot string) error {
+	out, err := runGit(ctx, vaultRoot, "symbolic-ref", "--short", "HEAD")
+	if err != nil {
+		// detached HEAD or other edge case — skip normalization
+		return nil
+	}
+	current := strings.TrimSpace(out)
+	if current == "main" {
+		return nil
+	}
+	if current == "master" {
+		// Only rename if "main" branch doesn't already exist
+		if _, err := runGit(ctx, vaultRoot, "rev-parse", "--verify", "--quiet", "refs/heads/main"); err == nil {
+			// "main" already exists — don't clobber it
+			return nil
+		}
+		if _, err := runGit(ctx, vaultRoot, "branch", "-M", "main"); err != nil {
+			return fmt.Errorf("rename master to main: %w", err)
+		}
 	}
 	return nil
 }

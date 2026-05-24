@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -220,6 +221,15 @@ func TestW1DemoWalkthroughCISmokeTest(t *testing.T) {
 	cmd.SetArgs([]string{"init", vaultRoot})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("init Execute() error = %v\nout=%s", err, out.String())
+	}
+
+	// step 1.5: verify default branch is "main" (cross-platform regression guard)
+	branchOut, err := exec.Command("git", "-C", vaultRoot, "symbolic-ref", "--short", "HEAD").Output()
+	if err != nil {
+		t.Fatalf("symbolic-ref after init: %v", err)
+	}
+	if strings.TrimSpace(string(branchOut)) != "main" {
+		t.Fatalf("expected branch 'main' after init, got %q", strings.TrimSpace(string(branchOut)))
 	}
 
 	// step 2: 手写一份中英混排 raw markdown

@@ -26,14 +26,17 @@ func StagePath(ctx context.Context, worktreeRoot, path string) error {
 	return nil
 }
 
-// GeneratePatch returns the staged diff from a worktree against main.
+// GeneratePatch returns the staged diff from a worktree against the base ref.
 //
 // D11 handlers pass the agent worktree root here. The branch parameter is kept
 // for the public contract and future branch-aware variants.
+// The base ref is resolved at runtime via defaultBaseRef (main → master → HEAD~1)
+// to handle cross-platform git init default branch differences.
 func GeneratePatch(ctx context.Context, worktreeRoot, branch, path string) ([]byte, error) {
 	_ = branch
+	baseRef := defaultBaseRef(ctx, worktreeRoot)
 	out, err := runGit(ctx, worktreeRoot,
-		"diff", "--cached", "--binary", "main", "--", filepath.FromSlash(path))
+		"diff", "--cached", "--binary", baseRef, "--", filepath.FromSlash(path))
 	if err != nil {
 		return nil, fmt.Errorf("git diff %s: %w", path, err)
 	}
@@ -41,6 +44,18 @@ func GeneratePatch(ctx context.Context, worktreeRoot, branch, path string) ([]by
 		return nil, fmt.Errorf("%w: %s", ErrNoChanges, path)
 	}
 	return []byte(out), nil
+}
+
+// defaultBaseRef resolves the base ref for diff operations.
+// Priority: main → master → HEAD~1.
+// Uses `git rev-parse --verify <ref>` to check existence.
+func defaultBaseRef(ctx context.Context, root string) string {
+	for _, ref := range []string{"main", "master"} {
+		if _, err := runGit(ctx, root, "rev-parse", "--verify", ref); err == nil {
+			return ref
+		}
+	}
+	return "HEAD~1"
 }
 
 // ApplyPatch applies a unified diff into a worktree and stages the result.

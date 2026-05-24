@@ -100,6 +100,68 @@ func TestGitRevertNoCommitPreservesAppendOnlyLogs(t *testing.T) {
 	}
 }
 
+func TestEnsureRepoCreatesMainBranch(t *testing.T) {
+	requireGit(t)
+	root := t.TempDir()
+
+	if err := EnsureRepo(context.Background(), root); err != nil {
+		t.Fatalf("EnsureRepo: %v", err)
+	}
+	out, err := exec.Command("git", "-C", root, "symbolic-ref", "--short", "HEAD").Output()
+	if err != nil {
+		t.Fatalf("symbolic-ref: %v", err)
+	}
+	if branch := strings.TrimSpace(string(out)); branch != "main" {
+		t.Fatalf("expected branch 'main' after EnsureRepo, got %q", branch)
+	}
+}
+
+func TestEnsureRepoRenamesMasterToMain(t *testing.T) {
+	requireGit(t)
+	root := t.TempDir()
+
+	// Manually init with master branch (simulating old git default)
+	cmd := exec.Command("git", "init", "--initial-branch=master", root)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git init --initial-branch=master: %v\n%s", err, out)
+	}
+
+	// EnsureRepo should rename master → main
+	if err := EnsureRepo(context.Background(), root); err != nil {
+		t.Fatalf("EnsureRepo: %v", err)
+	}
+	out, err := exec.Command("git", "-C", root, "symbolic-ref", "--short", "HEAD").Output()
+	if err != nil {
+		t.Fatalf("symbolic-ref: %v", err)
+	}
+	if branch := strings.TrimSpace(string(out)); branch != "main" {
+		t.Fatalf("expected branch 'main' after EnsureRepo on master repo, got %q", branch)
+	}
+}
+
+func TestEnsureRepoIdempotentOnMain(t *testing.T) {
+	requireGit(t)
+	root := t.TempDir()
+
+	// Init with main branch
+	cmd := exec.Command("git", "init", "--initial-branch=main", root)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git init --initial-branch=main: %v\n%s", err, out)
+	}
+
+	// EnsureRepo should be a no-op
+	if err := EnsureRepo(context.Background(), root); err != nil {
+		t.Fatalf("EnsureRepo: %v", err)
+	}
+	out, err := exec.Command("git", "-C", root, "symbolic-ref", "--short", "HEAD").Output()
+	if err != nil {
+		t.Fatalf("symbolic-ref: %v", err)
+	}
+	if branch := strings.TrimSpace(string(out)); branch != "main" {
+		t.Fatalf("expected branch 'main' after idempotent EnsureRepo, got %q", branch)
+	}
+}
+
 func initializedRepo(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
