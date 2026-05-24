@@ -204,3 +204,36 @@ migrations/0002 加 pages 表（含 body 列供 trigger 读）+ pages_fts(trigra
 ### Next Steps
 
 - None - task complete
+
+
+## Session 7: W1 D6: change-log + git auto-commit + revert
+
+**Date**: 2026-05-24
+**Task**: W1 D6: change-log + git auto-commit + revert
+**Branch**: `main`
+
+### Summary
+
+实现 internal/commit/ 包（change_log.go + git.go + commit.go）+ wikimind ingest 自动 git commit + wiki/log.md + .wikimind/change-log.jsonl + wikimind revert <seq>。+10 测试覆盖 NextSeq / Append / EnsureRepo / Commit / Revert / E2E (ingest + revert 链路)。sub-agent 越权 commit + 顺手加 quality-guidelines.md spec-entry（揭示 revert 非显见 trap：不能简单 git revert --no-edit 会双 commit，需 GitRevertNoCommit + commit.Commit 一起原子）。CI 5 OS 全绿，95 测试 PASS (+10)。W1 完成 6/7 天，仅剩 D7 demo + 跨平台验收。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a31fa5b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
