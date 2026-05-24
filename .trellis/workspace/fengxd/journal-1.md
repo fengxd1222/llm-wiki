@@ -237,3 +237,36 @@ migrations/0002 加 pages 表（含 body 列供 trigger 读）+ pages_fts(trigra
 ### Next Steps
 
 - None - task complete
+
+
+## Session 8: W1 D7: demo + 跨平台验收 + W1 出口
+
+**Date**: 2026-05-24
+**Task**: W1 D7: demo + 跨平台验收 + W1 出口
+**Branch**: `main`
+
+### Summary
+
+补 D3 遗留 gap: ingest 自动生成 wiki/sources/<id>.md (frontmatter title 三级 fallback, POSIX source_path, body 占位不复制 raw 全文)。ingest 后 auto reindex (--no-reindex 跳过, 失败 warning 不阻塞)。docs/demo/w1-walkthrough.md 完整步骤化文档 + D8+ teaser。3 demo smoke tests (含 CJK 端到端) + 8 source_page tests。trellis-check 实际跑 manual demo (init → CJK ingest → query → revert) 确认 walkthrough work。Sub-agent 严守 prompt 未越权。CI 5 OS 全绿，106 测试 (95 → 106, +11)。W1 出口 4 条达成: demo 跨平台 / ≥100 测试 / CI 全绿 / CJK 通过。W1 完成 7/7 天。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ad69b40` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

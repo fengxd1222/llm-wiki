@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 7
+- **Total Sessions**: 8
 - **Last Active**: 2026-05-24
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~239 | Active |
+| `journal-1.md` | ~272 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 8 | 2026-05-24 | W1 D7: demo + 跨平台验收 + W1 出口 | `ad69b40` | `main` |
 | 7 | 2026-05-24 | W1 D6: change-log + git auto-commit + revert | `a31fa5b` | `main` |
 | 6 | 2026-05-24 | W1 D5: FTS5 trigram query 命令 + ripgrep 兜底 | `bbba12c` | `main` |
 | 5 | 2026-05-23 | W1 D4: markdown frontmatter 解析 + pages 表 + page 命令组 | `a9cd424` | `main` |
