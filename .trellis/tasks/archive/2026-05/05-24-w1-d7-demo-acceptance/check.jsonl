@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量基准 + D6 spec-entry git/log 合规校验"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "校验 auto-reindex 失败降级 + 错误传播合规"}
+{"file": "spec-v2/docs/architecture.md", "reason": "校验 source page 是 raw 镜像而非 raw 内容复制（§4.2 source-of-truth）"}
+{"file": "spec-v2/docs/cjk-tokenizer.md", "reason": "校验 CJK demo 用例与 trigram 路由一致"}

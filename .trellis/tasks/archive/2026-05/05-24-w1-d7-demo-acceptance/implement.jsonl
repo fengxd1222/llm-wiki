@@ -1,0 +1,6 @@
+{"file": "spec-v2/docs/roadmap-30d.md", "reason": "W1 D7 出口标准 + demo flow 期望"}
+{"file": "spec-v2/docs/architecture.md", "reason": "§4.1 三层目录 + §4.2 raw/wiki/source-of-truth 关系（source page 在 wiki/sources/ 是 raw 的镜像层）"}
+{"file": "spec-v2/docs/cjk-tokenizer.md", "reason": "CJK demo 测试数据要求 + FTS5 trigram 中文命中验证"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量基准 + D6 sub-agent 加的 W1 git/log scenario"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "sentinel error + auto-reindex 失败降级 warning"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "reindex 后 SQLite 状态规范"}
