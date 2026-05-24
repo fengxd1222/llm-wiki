@@ -303,3 +303,36 @@ migrations/0002 加 pages 表（含 body 列供 trigger 读）+ pages_fts(trigra
 ### Next Steps
 
 - None - task complete
+
+
+## Session 10: W2 D9: MCP read tools 第二批 (5 tool + stage-2 anchor parser)
+
+**Date**: 2026-05-24
+**Task**: W2 D9: MCP read tools 第二批 (5 tool + stage-2 anchor parser)
+**Branch**: `main`
+
+### Summary
+
+用户直接实现: 5 个新 read tool (search / read_raw_anchor / read_claim / graph_neighbors / get_history) + internal/index/anchor.go stage-2 raw parser (heading slug + para-N + char[start:end] + QuoteHash sha256[:8]) + 9 tool 全 ReadOnlyHint=true。staged 占位 (claim sources / graph inbound / search min_confidence) 留 W2 D11+ propose_claim 表后真做。+62 行 quality-guidelines.md spec-entry。11 文件 1661 行 / 测试 129 → 145 (+16)。CI 5 OS 全绿。新工作流: D9 之后 main agent 只 create task + brainstorm + prd + curate jsonl, user 自实现。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b74f63a` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
