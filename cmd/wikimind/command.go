@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -27,7 +29,8 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 	cmd.AddCommand(newStatusCommand(stdout))
 	cmd.AddCommand(newIngestCommand(stdout))
 	cmd.AddCommand(newPageCommand(stdout))
-	for _, name := range []string{"query", "review", "lint", "revert"} {
+	cmd.AddCommand(newQueryCommand(stdout))
+	for _, name := range []string{"review", "lint", "revert"} {
 		cmd.AddCommand(newStubCommand(stdout, name))
 	}
 	return cmd
@@ -260,6 +263,106 @@ func printPageDetail(w io.Writer, p *index.PageRow) {
 	if len(lines) > limit {
 		fmt.Fprintf(w, "... (%d more lines)\n", len(lines)-limit)
 	}
+}
+
+func newQueryCommand(stdout io.Writer) *cobra.Command {
+	var (
+		noIndex bool
+		regex   bool
+		jsonOut bool
+		verbose bool
+		limit   int
+	)
+	cmd := &cobra.Command{
+		Use:   "query <text>",
+		Short: "Search wiki pages (FTS5 trigram + ripgrep fallback)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			vaultRoot, db, err := openVaultAndIndex()
+			if err != nil {
+				return err
+			}
+			defer db.Close()
+
+			hits, err := service.Search(cmd.Context(), db, vaultRoot, args[0], service.SearchOptions{
+				NoIndex: noIndex,
+				Regex:   regex,
+				Limit:   limit,
+			})
+			if err != nil {
+				if errors.Is(err, service.ErrIndexEmpty) {
+					return fmt.Errorf("no pages indexed yet — run 'wikimind page reindex' first")
+				}
+				return err
+			}
+
+			if jsonOut {
+				return printQueryJSON(stdout, hits)
+			}
+			printQueryHuman(stdout, hits, verbose)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&noIndex, "no-index", false, "bypass SQLite index and use ripgrep")
+	cmd.Flags().BoolVar(&regex, "regex", false, "treat query as regex (uses ripgrep)")
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "emit NDJSON (one hit per line)")
+	cmd.Flags().BoolVar(&verbose, "verbose", false, "include BM25 score / source in output")
+	cmd.Flags().IntVar(&limit, "limit", 20, "max hits to return")
+	return cmd
+}
+
+// printQueryHuman 输出对人友好的两行式列表：
+//
+//	<id> [type] <title>
+//	  <snippet>            (snippet 为空时省略)
+//	  score=... source=... (仅 verbose)
+//
+// 空结果显式提示，避免静默。
+func printQueryHuman(w io.Writer, hits []index.SearchHit, verbose bool) {
+	if len(hits) == 0 {
+		fmt.Fprintln(w, "no matches")
+		return
+	}
+	for _, h := range hits {
+		fmt.Fprintf(w, "%s [%s] %s\n", h.PageID, h.Type, h.Title)
+		if snip := strings.TrimSpace(h.Snippet); snip != "" {
+			fmt.Fprintf(w, "  %s\n", snip)
+		}
+		if verbose {
+			fmt.Fprintf(w, "  score=%g source=%s\n", h.Score, h.Source)
+		}
+	}
+}
+
+// printQueryJSON 输出 NDJSON：每行一个 SearchHit 序列化对象。
+// 兼容 stream 消费方（agent / jq -c）。
+func printQueryJSON(w io.Writer, hits []index.SearchHit) error {
+	enc := json.NewEncoder(w)
+	// NDJSON 一行一个对象——保留默认换行。
+	for _, h := range hits {
+		if err := enc.Encode(searchHitJSON{
+			PageID:  h.PageID,
+			Type:    h.Type,
+			Title:   h.Title,
+			Snippet: h.Snippet,
+			Score:   h.Score,
+			Source:  h.Source,
+		}); err != nil {
+			return fmt.Errorf("encode hit %s: %w", h.PageID, err)
+		}
+	}
+	return nil
+}
+
+// searchHitJSON 是 SearchHit 的 JSON 投影；显式定义 tag 让字段名稳定，
+// 不直接 marshal index.SearchHit 以免内部字段重命名影响 NDJSON 兼容。
+type searchHitJSON struct {
+	PageID  string  `json:"page_id"`
+	Type    string  `json:"type"`
+	Title   string  `json:"title"`
+	Snippet string  `json:"snippet"`
+	Score   float64 `json:"score"`
+	Source  string  `json:"source"`
 }
 
 func newStubCommand(stdout io.Writer, name string) *cobra.Command {

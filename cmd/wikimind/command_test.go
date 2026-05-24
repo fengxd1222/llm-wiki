@@ -99,7 +99,7 @@ func TestIngestCommand(t *testing.T) {
 }
 
 func TestStubCommands(t *testing.T) {
-	for _, name := range []string{"query", "review", "lint", "revert"} {
+	for _, name := range []string{"review", "lint", "revert"} {
 		var out bytes.Buffer
 		cmd := newRootCommand(&out, &out)
 		cmd.SetArgs([]string{name})
@@ -110,6 +110,99 @@ func TestStubCommands(t *testing.T) {
 		if out.String() != want {
 			t.Fatalf("%s output = %q, want %q", name, out.String(), want)
 		}
+	}
+}
+
+// TestQueryCommandRequiresArg 保证 query 已升级为真命令——
+// stub 命令零参数会原样打印 "D1 未实现"；query 用 ExactArgs(1) 必须 reject
+// 缺参调用并 surface 一个 usage 错误，TestStubCommands 才能与 query 分离。
+func TestQueryCommandRequiresArg(t *testing.T) {
+	var out bytes.Buffer
+	cmd := newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"query"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatalf("query without arg should error, got output: %q", out.String())
+	}
+	if !strings.Contains(err.Error(), "accepts 1 arg") {
+		t.Fatalf("expected 'accepts 1 arg' usage error, got: %v", err)
+	}
+}
+
+// TestQueryCommandFTS5Path 端到端验证 CLI query：reindex 后用 trigram 命中
+// 一个 seeded claim 页，确认输出包含 page id、type 标记和 snippet。
+// 这是 query 命令在 cmd 层的唯一 happy-path smoke——细节路由由 service 层
+// 单测保证。
+func TestQueryCommandFTS5Path(t *testing.T) {
+	tempDir := t.TempDir()
+	vaultRoot := filepath.Join(tempDir, "vault")
+	if _, err := vault.Init(vaultRoot); err != nil {
+		t.Fatalf("vault.Init: %v", err)
+	}
+	t.Chdir(vaultRoot)
+
+	// Seed a claim page with a distinct multi-rune Chinese phrase + English token.
+	claimPath := filepath.Join(vaultRoot, "wiki", "claims", "compounding.md")
+	if err := os.MkdirAll(filepath.Dir(claimPath), 0o755); err != nil {
+		t.Fatalf("mkdir claims: %v", err)
+	}
+	claimBody := `---
+id: cl-q-001
+type: claim
+title: "Wiki 是一个 compounding artifact"
+schema_version: "1.0"
+---
+
+# compounding
+
+每一次 ingest 都让 wiki 更值钱。
+`
+	if err := os.WriteFile(claimPath, []byte(claimBody), 0o644); err != nil {
+		t.Fatalf("seed claim: %v", err)
+	}
+
+	// reindex first so pages_fts has rows.
+	var out bytes.Buffer
+	cmd := newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"page", "reindex"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("page reindex: %v\n%s", err, out.String())
+	}
+
+	// English query → FTS5 trigram hit.
+	out.Reset()
+	cmd = newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"query", "compounding"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("query: %v\n%s", err, out.String())
+	}
+	got := out.String()
+	for _, want := range []string{"cl-q-001", "[claim]"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("query output missing %q:\n%s", want, got)
+		}
+	}
+}
+
+// TestQueryCommandEmptyIndexFriendlyHint 验证空 vault 跑 query 提示用户先
+// reindex，而不是裸 SQL 错误。
+func TestQueryCommandEmptyIndexFriendlyHint(t *testing.T) {
+	tempDir := t.TempDir()
+	vaultRoot := filepath.Join(tempDir, "vault")
+	if _, err := vault.Init(vaultRoot); err != nil {
+		t.Fatalf("vault.Init: %v", err)
+	}
+	t.Chdir(vaultRoot)
+
+	var out bytes.Buffer
+	cmd := newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"query", "anything"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatalf("query against empty index should error, got output: %q", out.String())
+	}
+	if !strings.Contains(err.Error(), "wikimind page reindex") {
+		t.Fatalf("expected reindex hint in error, got: %v", err)
 	}
 }
 
