@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量基准 + D6/D11 既有 git scenario"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "sentinel error + %w wrap + git 子命令 fail 友好错误"}
+{"file": "spec-v2/docs/engineering-decisions.md", "reason": "§4.4 exec git (--initial-branch=main 仍走 exec)"}
+{"file": "spec-v2/docs/cross-platform.md", "reason": "git binary 跨平台 + git init default branch 差异背景"}

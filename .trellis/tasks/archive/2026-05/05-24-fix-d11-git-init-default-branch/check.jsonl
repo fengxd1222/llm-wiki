@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量基准"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "git rename 失败错误处理 + ensureMainBranch 错误传播"}
+{"file": "spec-v2/docs/cross-platform.md", "reason": "校验 main branch 在 Windows / Linux / macOS 全平台一致"}
