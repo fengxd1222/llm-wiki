@@ -1,0 +1,8 @@
+{"file": "spec-v2/docs/roadmap-30d.md", "reason": "D10 范围 + W2 出口"}
+{"file": "spec-v2/docs/agent-protocol.md", "reason": "§3 handshake 协议 + §4 worktree 物理结构 + 失败码 4 种"}
+{"file": "spec-v2/docs/mcp-tools.md", "reason": "§1 agent_handshake 权威 schema + readOnlyHint=false 标签"}
+{"file": "spec-v2/docs/architecture.md", "reason": "§2.4 worktree 隔离 + §3.3 review accept 流程预览"}
+{"file": "spec-v2/docs/engineering-decisions.md", "reason": "§4.4 exec git (git worktree 同走 exec)"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量基准 + D6 git/log scenario + D9 mcp scenario"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "sentinel error pattern + path injection 防御 (sessionID regex)"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "migration goose 规范 + 索引设计 + 参数化查询"}

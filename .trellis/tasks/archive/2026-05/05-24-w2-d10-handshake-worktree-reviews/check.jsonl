@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量基准 + D6/D9 既有 scenario"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "校验 sentinel error + 5 个错误码（AGENT_NOT_WHITELISTED 等）+ path injection 防御"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "校验 migration goose 标记 + 索引 + 参数化查询"}
+{"file": "spec-v2/docs/mcp-tools.md", "reason": "校验 agent_handshake response shape 严格匹配 §1"}
+{"file": "spec-v2/docs/agent-protocol.md", "reason": "校验 §3.2 失败码语义 + §4.2 worktree 权限矩阵正确"}
