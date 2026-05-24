@@ -8,7 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/fengxd1222/llm-wiki/internal/commit"
 	"github.com/fengxd1222/llm-wiki/internal/index"
 	"github.com/fengxd1222/llm-wiki/internal/service"
 )
@@ -355,6 +357,83 @@ func TestHandleReadRawNotFound(t *testing.T) {
 	}
 }
 
+// --- read_raw_anchor ---
+
+func TestHandleReadRawAnchorHeadingParaAndChar(t *testing.T) {
+	ctx := context.Background()
+	b, cleanup := newBackend(t)
+	t.Cleanup(cleanup)
+	body := "# Intro\n\nFirst paragraph.\n\n## 细节\n中文 quote line.\n"
+	rawID := "raw/inbox/anchor.md"
+	mustWrite(t, filepath.Join(b.root, filepath.FromSlash(rawID)), []byte(body))
+	if err := index.InsertSource(ctx, b.db, &index.SourceRow{
+		RawID: rawID, SHA256: "stored-sha", Size: int64(len(body)), MTime: 1700000000,
+		Status: "pending", IngestedAt: 1700000000,
+	}); err != nil {
+		t.Fatalf("InsertSource: %v", err)
+	}
+
+	heading, err := b.handleReadRawAnchor(ctx, ReadRawAnchorArgs{RawID: rawID, Anchor: "#细节"})
+	if err != nil {
+		t.Fatalf("heading anchor: %v", err)
+	}
+	if !strings.Contains(heading.Content, "中文 quote line.") {
+		t.Fatalf("heading content = %q", heading.Content)
+	}
+	if heading.QuoteHash != index.QuoteHash(heading.Content) {
+		t.Fatalf("QuoteHash = %q, want computed", heading.QuoteHash)
+	}
+	if heading.SourceSHA256 != "stored-sha" {
+		t.Fatalf("SourceSHA256 = %q, want stored-sha", heading.SourceSHA256)
+	}
+	if heading.SourceMTime != time.Unix(1700000000, 0).UTC().Format(time.RFC3339) {
+		t.Fatalf("SourceMTime = %q", heading.SourceMTime)
+	}
+
+	para, err := b.handleReadRawAnchor(ctx, ReadRawAnchorArgs{RawID: rawID, Anchor: "#para-1"})
+	if err != nil {
+		t.Fatalf("para anchor: %v", err)
+	}
+	if para.Content != "# Intro" {
+		t.Fatalf("para content = %q, want heading paragraph", para.Content)
+	}
+
+	char, err := b.handleReadRawAnchor(ctx, ReadRawAnchorArgs{RawID: rawID, Anchor: "#char[0:7]"})
+	if err != nil {
+		t.Fatalf("char anchor: %v", err)
+	}
+	if char.Content != "# Intro" || char.Span != [2]int{0, 7} {
+		t.Fatalf("char content/span = %q/%v", char.Content, char.Span)
+	}
+}
+
+func TestHandleReadRawAnchorErrors(t *testing.T) {
+	b, cleanup := newBackend(t)
+	t.Cleanup(cleanup)
+	rawID := "raw/inbox/anchor.md"
+	mustWrite(t, filepath.Join(b.root, filepath.FromSlash(rawID)), []byte("# Intro\n"))
+
+	cases := []struct {
+		name    string
+		args    ReadRawAnchorArgs
+		wantErr error
+	}{
+		{"malformed", ReadRawAnchorArgs{RawID: rawID, Anchor: "intro"}, index.ErrAnchorMalformed},
+		{"missing heading", ReadRawAnchorArgs{RawID: rawID, Anchor: "#missing"}, index.ErrHeadingNotFound},
+		{"outside raw", ReadRawAnchorArgs{RawID: "wiki/index.md", Anchor: "#para-1"}, ErrRawIDOutsideRaw},
+		{"not found", ReadRawAnchorArgs{RawID: "raw/inbox/nope.md", Anchor: "#para-1"}, ErrRawNotFound},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := b.handleReadRawAnchor(context.Background(), tc.args)
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
 // --- list_index ---
 
 // TestHandleListIndexEmpty 空索引：total=0、items=[]，不返回 nil。
@@ -478,6 +557,256 @@ func TestHandleListIndexLimitOffset(t *testing.T) {
 	}
 }
 
+// --- search ---
+
+func TestHandleSearchFiltersAndWarnings(t *testing.T) {
+	ctx := context.Background()
+	b, cleanup := newBackend(t)
+	t.Cleanup(cleanup)
+	seedClaim(t, b.root, "cl-supported", "wiki/claims/supported.md",
+		"Compounding supported", "supported", 0.9)
+	seedClaim(t, b.root, "cl-draft", "wiki/claims/draft.md",
+		"Compounding draft", "draft", 0.4)
+	seedClaim(t, b.root, "en-compounding", "wiki/entities/compounding.md",
+		"Compounding entity", "", 0)
+	if _, err := service.ReindexWiki(ctx, b.db, b.root); err != nil {
+		t.Fatalf("reindex: %v", err)
+	}
+	minConf := 0.8
+	limit := 10
+
+	got, err := b.handleSearch(ctx, SearchArgs{
+		Query: "compounding",
+		Type:  "fts+vector",
+		Limit: &limit,
+		Filter: &SearchFilter{
+			PageType:      []string{"claim"},
+			Status:        []string{"supported"},
+			MinConfidence: &minConf,
+		},
+	})
+	if err != nil {
+		t.Fatalf("handleSearch: %v", err)
+	}
+	if got.TokenizerUsed != "trigram" {
+		t.Fatalf("TokenizerUsed = %q, want trigram", got.TokenizerUsed)
+	}
+	if len(got.Warnings) != 1 || !strings.Contains(got.Warnings[0], "downgraded") {
+		t.Fatalf("Warnings = %v, want fts+vector downgrade", got.Warnings)
+	}
+	if len(got.Notes) != 1 || !strings.Contains(got.Notes[0], "min_confidence") {
+		t.Fatalf("Notes = %v, want min_confidence note", got.Notes)
+	}
+	if len(got.Results) != 1 || got.Results[0].PageID != "cl-supported" {
+		t.Fatalf("Results = %+v, want only cl-supported", got.Results)
+	}
+	if got.Results[0].Confidence == nil || *got.Results[0].Confidence != 0.9 {
+		t.Fatalf("Confidence = %v, want 0.9", got.Results[0].Confidence)
+	}
+}
+
+func TestHandleSearchUpdatedSinceAndShortQuery(t *testing.T) {
+	ctx := context.Background()
+	b, cleanup := newBackend(t)
+	t.Cleanup(cleanup)
+	seedPageWithUpdatedAt(t, b.root, "cl-old", "wiki/claims/old.md", "AI old", "2026-05-20T00:00:00Z")
+	seedPageWithUpdatedAt(t, b.root, "cl-new", "wiki/claims/new.md", "AI new", "2026-05-24T00:00:00Z")
+	if _, err := service.ReindexWiki(ctx, b.db, b.root); err != nil {
+		t.Fatalf("reindex: %v", err)
+	}
+
+	got, err := b.handleSearch(ctx, SearchArgs{
+		Query: "AI",
+		Filter: &SearchFilter{
+			UpdatedSince: "2026-05-23T00:00:00Z",
+		},
+	})
+	if err != nil {
+		t.Fatalf("handleSearch: %v", err)
+	}
+	if got.TokenizerUsed != "like" {
+		t.Fatalf("TokenizerUsed = %q, want like for short query", got.TokenizerUsed)
+	}
+	if len(got.Results) != 1 || got.Results[0].PageID != "cl-new" {
+		t.Fatalf("Results = %+v, want only cl-new", got.Results)
+	}
+}
+
+// --- read_claim ---
+
+func TestHandleReadClaimStagedSources(t *testing.T) {
+	ctx := context.Background()
+	b, cleanup := newBackend(t)
+	t.Cleanup(cleanup)
+	seedClaim(t, b.root, "cl-claim", "wiki/claims/claim.md", "Claim title", "supported", 0.92)
+	if _, err := service.ReindexWiki(ctx, b.db, b.root); err != nil {
+		t.Fatalf("reindex: %v", err)
+	}
+
+	got, err := b.handleReadClaim(ctx, ReadClaimArgs{ClaimID: "cl-claim"})
+	if err != nil {
+		t.Fatalf("handleReadClaim: %v", err)
+	}
+	if got.ID != "cl-claim" || got.Type != "claim" {
+		t.Fatalf("claim result = %+v, want cl-claim/claim", got)
+	}
+	if got.Sources == nil || len(got.Sources) != 0 {
+		t.Fatalf("Sources = %#v, want empty slice", got.Sources)
+	}
+	if !strings.Contains(got.SourcesNote, "claim_sources") {
+		t.Fatalf("SourcesNote = %q, want staged claim_sources note", got.SourcesNote)
+	}
+}
+
+func TestHandleReadClaimRejectsNonClaimAndMissing(t *testing.T) {
+	ctx := context.Background()
+	b, cleanup := newBackend(t)
+	t.Cleanup(cleanup)
+	seedClaim(t, b.root, "en-entity", "wiki/entities/entity.md", "Entity title", "", 0)
+	if _, err := service.ReindexWiki(ctx, b.db, b.root); err != nil {
+		t.Fatalf("reindex: %v", err)
+	}
+	for _, id := range []string{"en-entity", "cl-missing"} {
+		_, err := b.handleReadClaim(ctx, ReadClaimArgs{ClaimID: id})
+		if !errors.Is(err, ErrClaimNotFound) {
+			t.Fatalf("id=%s err = %v, want ErrClaimNotFound", id, err)
+		}
+	}
+}
+
+// --- graph_neighbors ---
+
+func TestHandleGraphNeighborsOutAndInStaged(t *testing.T) {
+	ctx := context.Background()
+	b, cleanup := newBackend(t)
+	t.Cleanup(cleanup)
+	seedLinkedPage(t, b.root, "cl-link", "wiki/claims/link.md", "Link page", "[[en-a]] and [[co-b|Concept B]] and [[en-a]]")
+	seedClaim(t, b.root, "en-a", "wiki/entities/a.md", "Entity A", "", 0)
+	seedClaim(t, b.root, "co-b", "wiki/concepts/b.md", "Concept B", "", 0)
+	if _, err := service.ReindexWiki(ctx, b.db, b.root); err != nil {
+		t.Fatalf("reindex: %v", err)
+	}
+
+	got, err := b.handleGraphNeighbors(ctx, GraphNeighborsArgs{PageID: "cl-link"})
+	if err != nil {
+		t.Fatalf("handleGraphNeighbors: %v", err)
+	}
+	if len(got.Neighbors) != 2 {
+		t.Fatalf("Neighbors = %+v, want 2 deduped outbounds", got.Neighbors)
+	}
+	if got.Neighbors[0].LinkType != "ref" || got.Neighbors[0].Title == "" {
+		t.Fatalf("neighbor = %+v, want ref with title", got.Neighbors[0])
+	}
+	if len(got.Notes) != 1 || !strings.Contains(got.Notes[0], "page_links") {
+		t.Fatalf("Notes = %v, want inbound staged note for default both", got.Notes)
+	}
+
+	inOnly, err := b.handleGraphNeighbors(ctx, GraphNeighborsArgs{PageID: "cl-link", Direction: "in"})
+	if err != nil {
+		t.Fatalf("in graph: %v", err)
+	}
+	if len(inOnly.Neighbors) != 0 || len(inOnly.Notes) != 1 {
+		t.Fatalf("in graph = %+v, want empty neighbors + note", inOnly)
+	}
+}
+
+func TestHandleGraphNeighborsDepthAndLinkFilter(t *testing.T) {
+	ctx := context.Background()
+	b, cleanup := newBackend(t)
+	t.Cleanup(cleanup)
+	seedLinkedPage(t, b.root, "cl-link", "wiki/claims/link.md", "Link page", "[[en-a]]")
+	if _, err := service.ReindexWiki(ctx, b.db, b.root); err != nil {
+		t.Fatalf("reindex: %v", err)
+	}
+
+	depth := 2
+	_, err := b.handleGraphNeighbors(ctx, GraphNeighborsArgs{PageID: "cl-link", Depth: &depth})
+	if !errors.Is(err, ErrDepthUnsupported) {
+		t.Fatalf("depth err = %v, want ErrDepthUnsupported", err)
+	}
+
+	got, err := b.handleGraphNeighbors(ctx, GraphNeighborsArgs{
+		PageID: "cl-link", Direction: "out", LinkTypes: []string{"cite"},
+	})
+	if err != nil {
+		t.Fatalf("link filter: %v", err)
+	}
+	if len(got.Neighbors) != 0 {
+		t.Fatalf("Neighbors = %+v, want empty when ref filtered out", got.Neighbors)
+	}
+}
+
+// --- get_history ---
+
+func TestHandleGetHistorySeqChangeLog(t *testing.T) {
+	ctx := context.Background()
+	b, cleanup := newBackend(t)
+	t.Cleanup(cleanup)
+	rel := "wiki/claims/history.md"
+	seedClaim(t, b.root, "cl-history", rel, "History one", "", 0)
+	if _, err := service.ReindexWiki(ctx, b.db, b.root); err != nil {
+		t.Fatalf("reindex: %v", err)
+	}
+	if _, err := commit.Commit(ctx, b.root, "accept", "initial history", []string{rel}); err != nil {
+		t.Fatalf("commit first: %v", err)
+	}
+	mustWrite(t, filepath.Join(b.root, filepath.FromSlash(rel)), []byte(`---
+id: cl-history
+type: claim
+title: "History two"
+schema_version: "1.0"
+---
+
+# History two
+`))
+	if _, err := service.ReindexWiki(ctx, b.db, b.root); err != nil {
+		t.Fatalf("reindex second: %v", err)
+	}
+	if _, err := commit.Commit(ctx, b.root, "edit", "update history", []string{rel}); err != nil {
+		t.Fatalf("commit second: %v", err)
+	}
+
+	got, err := b.handleGetHistory(ctx, GetHistoryArgs{PageID: "cl-history"})
+	if err != nil {
+		t.Fatalf("handleGetHistory: %v", err)
+	}
+	if len(got.Commits) != 2 {
+		t.Fatalf("Commits = %+v, want 2", got.Commits)
+	}
+	if got.Commits[0].Op != "edit" || got.Commits[0].Actor != "user" ||
+		got.Commits[0].Summary != "update history" {
+		t.Fatalf("latest commit = %+v, want change-log edit", got.Commits[0])
+	}
+	if got.Commits[0].DiffSummary == "" {
+		t.Fatalf("DiffSummary empty")
+	}
+}
+
+func TestHandleGetHistoryGitDirect(t *testing.T) {
+	ctx := context.Background()
+	b, cleanup := newBackend(t)
+	t.Cleanup(cleanup)
+	rel := "wiki/claims/direct.md"
+	seedClaim(t, b.root, "cl-direct", rel, "Direct", "", 0)
+	if _, err := service.ReindexWiki(ctx, b.db, b.root); err != nil {
+		t.Fatalf("reindex: %v", err)
+	}
+	if err := runGitAddCommit(ctx, b.root, rel, "manual direct edit"); err != nil {
+		t.Fatalf("manual commit: %v", err)
+	}
+
+	got, err := b.handleGetHistory(ctx, GetHistoryArgs{PageID: "cl-direct"})
+	if err != nil {
+		t.Fatalf("handleGetHistory: %v", err)
+	}
+	if len(got.Commits) != 1 {
+		t.Fatalf("Commits = %+v, want 1", got.Commits)
+	}
+	if got.Commits[0].Op != "git-direct" || got.Commits[0].Summary != "manual direct edit" {
+		t.Fatalf("commit = %+v, want git-direct manual direct edit", got.Commits[0])
+	}
+}
+
 // --- helpers ---
 
 // newBackend 建一个 vault + opens index db，返回 backend + cleanup hook。
@@ -519,6 +848,52 @@ func seedClaim(t *testing.T, root, id, rel, title, status string, confidence flo
 	if err := os.WriteFile(abs, []byte(fm.String()), 0o644); err != nil {
 		t.Fatalf("write %s: %v", rel, err)
 	}
+}
+
+func seedPageWithUpdatedAt(t *testing.T, root, id, rel, title, updatedAt string) {
+	t.Helper()
+	abs := filepath.Join(root, rel)
+	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	body := "---\n" +
+		"id: " + id + "\n" +
+		"type: " + pageTypeFromPath(rel) + "\n" +
+		"title: \"" + title + "\"\n" +
+		"schema_version: \"1.0\"\n" +
+		"updated_at: \"" + updatedAt + "\"\n" +
+		"---\n\n# " + title + "\n\n" + title + " body.\n"
+	if err := os.WriteFile(abs, []byte(body), 0o644); err != nil {
+		t.Fatalf("write %s: %v", rel, err)
+	}
+}
+
+func seedLinkedPage(t *testing.T, root, id, rel, title, links string) {
+	t.Helper()
+	abs := filepath.Join(root, rel)
+	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	body := "---\n" +
+		"id: " + id + "\n" +
+		"type: " + pageTypeFromPath(rel) + "\n" +
+		"title: \"" + title + "\"\n" +
+		"schema_version: \"1.0\"\n" +
+		"---\n\n# " + title + "\n\n" + links + "\n"
+	if err := os.WriteFile(abs, []byte(body), 0o644); err != nil {
+		t.Fatalf("write %s: %v", rel, err)
+	}
+}
+
+func runGitAddCommit(ctx context.Context, root, rel, message string) error {
+	if _, err := runVaultGit(ctx, root, "add", "--", filepath.FromSlash(rel)); err != nil {
+		return err
+	}
+	_, err := runVaultGit(ctx, root,
+		"-c", "user.name=WikiMind Test",
+		"-c", "user.email=wikimind-test@localhost",
+		"commit", "-m", message)
+	return err
 }
 
 // pageTypeFromPath 把 wiki/claims/x.md → "claim"；让 seedClaim 复用同一 helper

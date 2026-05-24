@@ -1,6 +1,6 @@
 package mcp
 
-// 本文件定义 4 个只读 tool 的 Request / Response 类型。
+// 本文件定义只读 tool 的 Request / Response 类型。
 //
 // 字段命名与 spec-v2/docs/mcp-tools.md §2-4 §7 的 JSON schema 一一对应。
 // 使用 jsonschema struct tag 让 go-sdk 自动推断 input schema。
@@ -121,4 +121,128 @@ type IndexItem struct {
 type ListIndexResult struct {
 	Total int          `json:"total"`
 	Items []*IndexItem `json:"items"`
+}
+
+// ReadRawAnchorArgs 镜像 mcp-tools.md §5 read_raw_anchor input。
+type ReadRawAnchorArgs struct {
+	RawID  string `json:"raw_id" jsonschema:"vault-relative path under raw/, e.g. raw/inbox/x.md"`
+	Anchor string `json:"anchor" jsonschema:"format: #heading-slug | #para-N | #char[start:end]"`
+}
+
+// ReadRawAnchorResult 是 read_raw_anchor 的输出。
+type ReadRawAnchorResult struct {
+	RawID        string `json:"raw_id"`
+	Anchor       string `json:"anchor"`
+	Content      string `json:"content"`
+	QuoteHash    string `json:"quote_hash"`
+	Span         [2]int `json:"span"`
+	SourceMTime  string `json:"source_mtime"`
+	SourceSHA256 string `json:"source_sha256"`
+}
+
+// ReadClaimArgs 镜像 mcp-tools.md §6 read_claim input。
+type ReadClaimArgs struct {
+	ClaimID string `json:"claim_id" jsonschema:"claim page id"`
+}
+
+// ClaimSourceStatus 是 read_claim.sources 的元素。
+type ClaimSourceStatus struct {
+	RawID            string `json:"raw_id"`
+	Anchor           string `json:"anchor"`
+	StoredQuoteHash  string `json:"stored_quote_hash"`
+	CurrentQuoteHash string `json:"current_quote_hash"`
+	DriftStatus      string `json:"drift_status"`
+	SourceModifiedAt string `json:"source_modified_at,omitempty"`
+}
+
+// ReadClaimResult 是 read_claim 的输出；D9 sources staged 为空数组。
+type ReadClaimResult struct {
+	ID            string              `json:"id"`
+	Type          string              `json:"type"`
+	Path          string              `json:"path"`
+	Title         string              `json:"title"`
+	Body          string              `json:"body"`
+	Confidence    *float64            `json:"confidence,omitempty"`
+	Status        string              `json:"status,omitempty"`
+	SchemaVersion string              `json:"schema_version"`
+	Frontmatter   string              `json:"frontmatter,omitempty"`
+	Sources       []ClaimSourceStatus `json:"sources"`
+	SourcesNote   string              `json:"sources_note,omitempty"`
+}
+
+// SearchArgs 镜像 mcp-tools.md §8 search input。
+type SearchArgs struct {
+	Query  string        `json:"query"`
+	Type   string        `json:"type,omitempty" jsonschema:"fts|fts+vector"`
+	Filter *SearchFilter `json:"filter,omitempty"`
+	Limit  *int          `json:"limit,omitempty"`
+}
+
+// SearchFilter 是 search.filter 的输入。
+type SearchFilter struct {
+	PageType      []string `json:"page_type,omitempty"`
+	MinConfidence *float64 `json:"min_confidence,omitempty"`
+	Status        []string `json:"status,omitempty"`
+	UpdatedSince  string   `json:"updated_since,omitempty" jsonschema:"date-time"`
+}
+
+// SearchResultItem 是 search.results 的元素。
+type SearchResultItem struct {
+	PageID     string   `json:"page_id"`
+	Title      string   `json:"title"`
+	Snippet    string   `json:"snippet"`
+	Score      float64  `json:"score"`
+	Confidence *float64 `json:"confidence,omitempty"`
+}
+
+// SearchResult 是 search 的输出。
+type SearchResult struct {
+	Results       []SearchResultItem `json:"results"`
+	TokenizerUsed string             `json:"tokenizer_used"`
+	QueryTimeMS   int64              `json:"query_time_ms"`
+	Warnings      []string           `json:"warnings,omitempty"`
+	Notes         []string           `json:"notes,omitempty"`
+}
+
+// GraphNeighborsArgs 镜像 mcp-tools.md §9 graph_neighbors input。
+type GraphNeighborsArgs struct {
+	PageID    string   `json:"page_id"`
+	Direction string   `json:"direction,omitempty" jsonschema:"out|in|both"`
+	Depth     *int     `json:"depth,omitempty" jsonschema:"default 1; D9 supports only 1"`
+	LinkTypes []string `json:"link_types,omitempty"`
+}
+
+// GraphNeighbor 是 graph_neighbors.neighbors 的元素。
+type GraphNeighbor struct {
+	PageID   string `json:"page_id"`
+	Title    string `json:"title,omitempty"`
+	LinkType string `json:"link_type"`
+}
+
+// GraphNeighborsResult 是 graph_neighbors 的输出。
+type GraphNeighborsResult struct {
+	Neighbors []GraphNeighbor `json:"neighbors"`
+	Notes     []string        `json:"notes,omitempty"`
+}
+
+// GetHistoryArgs 镜像 mcp-tools.md §10 get_history input。
+type GetHistoryArgs struct {
+	PageID string `json:"page_id"`
+	Limit  *int   `json:"limit,omitempty"`
+}
+
+// HistoryCommit 是 get_history.commits 的元素。
+type HistoryCommit struct {
+	SHA         string `json:"sha"`
+	TS          string `json:"ts"`
+	Actor       string `json:"actor"`
+	Op          string `json:"op"`
+	BundleID    string `json:"bundle_id,omitempty"`
+	Summary     string `json:"summary"`
+	DiffSummary string `json:"diff_summary"`
+}
+
+// GetHistoryResult 是 get_history 的输出。
+type GetHistoryResult struct {
+	Commits []HistoryCommit `json:"commits"`
 }

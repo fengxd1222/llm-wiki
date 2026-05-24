@@ -14,7 +14,7 @@ import (
 // "构造失败" vs "运行失败" 两类错误。
 var ErrServerBuild = errors.New("mcp server build failed")
 
-// NewServer 构造 wikimind MCP server，注册 4 个 D8 只读 tool。
+// NewServer 构造 wikimind MCP server，注册 WikiMind 只读 tool。
 //
 // vaultRoot 必须是已 init 的 vault 绝对路径；db 是已打开的 SQLite 索引
 // （调用方负责 Close）。同一进程内 server 全程持有 db handle—— go-sdk 的
@@ -42,12 +42,12 @@ func NewServer(ctx context.Context, vaultRoot string, db *index.DB) (*sdk.Server
 	return server, nil
 }
 
-// registerTools 把 4 个 handler 装上 server。
+// registerTools 把 handler 装上 server。
 //
 // go-sdk AddTool 是泛型函数，每个 tool 一行——typed In/Out 让 SDK 自动
 // 推断 schema 并校验 request。
 //
-// 4 个 D8 tool 都是只读，统一打 ReadOnlyHint=true——让 MCP host（如 Claude
+// 所有已上线 tool 都是只读，统一打 ReadOnlyHint=true——让 MCP host（如 Claude
 // Code / Claude Desktop）跳过 user confirmation（mcp-tools.md §0、§22）。
 func registerTools(server *sdk.Server, b *vaultBackend) {
 	readOnly := &sdk.ToolAnnotations{ReadOnlyHint: true}
@@ -66,7 +66,7 @@ func registerTools(server *sdk.Server, b *vaultBackend) {
 
 	sdk.AddTool(server, &sdk.Tool{
 		Name:        "read_raw",
-		Description: "Read a raw file under raw/. format=normalized is staged for W2 D9.",
+		Description: "Read a raw file under raw/. Use read_raw_anchor for anchored quote_hash reads.",
 		Annotations: readOnly,
 	}, wrapHandler(b.handleReadRaw))
 
@@ -75,6 +75,36 @@ func registerTools(server *sdk.Server, b *vaultBackend) {
 		Description: "List indexed pages with optional type / prefix filter + limit/offset.",
 		Annotations: readOnly,
 	}, wrapHandler(b.handleListIndex))
+
+	sdk.AddTool(server, &sdk.Tool{
+		Name:        "read_raw_anchor",
+		Description: "Read a heading, paragraph, or char-span anchor from raw/ and return quote_hash.",
+		Annotations: readOnly,
+	}, wrapHandler(b.handleReadRawAnchor))
+
+	sdk.AddTool(server, &sdk.Tool{
+		Name:        "read_claim",
+		Description: "Read a claim page and staged source validation metadata.",
+		Annotations: readOnly,
+	}, wrapHandler(b.handleReadClaim))
+
+	sdk.AddTool(server, &sdk.Tool{
+		Name:        "search",
+		Description: "Search wiki pages with FTS5/LIKE routing and staged filters.",
+		Annotations: readOnly,
+	}, wrapHandler(b.handleSearch))
+
+	sdk.AddTool(server, &sdk.Tool{
+		Name:        "graph_neighbors",
+		Description: "Read page graph neighbors from live wikilink parsing.",
+		Annotations: readOnly,
+	}, wrapHandler(b.handleGraphNeighbors))
+
+	sdk.AddTool(server, &sdk.Tool{
+		Name:        "get_history",
+		Description: "Read git/change-log history for a wiki page.",
+		Annotations: readOnly,
+	}, wrapHandler(b.handleGetHistory))
 }
 
 // wrapHandler 把 "args → result, error" 风格的 handler 适配成 go-sdk 期望的

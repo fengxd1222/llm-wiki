@@ -71,7 +71,7 @@ func newMcpServeCommand(stdout, stderr io.Writer) *cobra.Command {
 	var vaultPath string
 	cmd := &cobra.Command{
 		Use:   "serve",
-		Short: "Run WikiMind MCP server on stdio (read-only tools: wiki_info, read_page, read_raw, list_index)",
+		Short: "Run WikiMind MCP server on stdio (wiki_info, read_page, read_raw, list_index, search, read_raw_anchor, read_claim, graph_neighbors, get_history)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = stdout // stdout is the MCP protocol stream; not for human-readable output.
@@ -96,7 +96,7 @@ func newMcpServeCommand(stdout, stderr io.Writer) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("build mcp server: %w", err)
 			}
-			logger.Printf("ready: 4 tools registered (wiki_info, read_page, read_raw, list_index)")
+			logger.Printf("ready: 9 tools registered")
 
 			if err := mcppkg.RunStdio(ctx, server); err != nil {
 				// ctx cancel 触发的关闭走 SDK 内部 EOF/ContextDone；

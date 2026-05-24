@@ -106,6 +106,68 @@ var files embed.FS
 
 </spec-entry>
 
+<spec-entry category="quality" keywords="mcp,read-tools,anchor,quote-hash,search,graph,history" date="2026-05-24" source="internal/index/anchor.go:38;internal/index/anchor.go:76;internal/index/anchor.go:96;internal/mcp/server.go:79;internal/mcp/tools.go:359;internal/mcp/tools.go:488;internal/mcp/tools.go:591;internal/mcp/tools.go:620;internal/mcp/tools.go:676">
+
+## Scenario: W2 D9 MCP read tools contract
+
+### 1. Scope / Trigger
+- Trigger: adding or changing MCP read tools, anchor parsing, quote hash generation, page graph reads, or git-backed page history.
+- Applies to `internal/mcp`, `internal/index/anchor.go`, page/source index reads, and `cmd/wikimind mcp serve` tool advertising.
+
+### 2. Signatures
+- `index.ParseAnchor(s) (AnchorKind, string, error)` supports `#heading-slug`, `#para-N`, and `#char[start:end]`.
+- `index.ResolveAnchor(content, anchor) (text, [2]int, error)` returns raw text plus `[startRune,endRune]` in the original file.
+- `index.QuoteHash(text) string` returns `sha256(normalizedText)[:8]`.
+- D9 registers `read_raw_anchor`, `read_claim`, `search`, `graph_neighbors`, and `get_history` in addition to the D8 tools. All registered tools must have `ReadOnlyHint=true`.
+
+### 3. Contracts
+- Heading anchors return the matched heading section up to the next same-or-higher-level heading. Slugs lowercase ASCII, keep CJK, convert whitespace/underscore/dash runs to `-`, and drop other punctuation.
+- Paragraph anchors are 1-indexed and skip YAML frontmatter before blank-line paragraph splitting.
+- Char spans use UTF-8 rune indexes, not byte indexes, to avoid splitting CJK characters.
+- `read_raw_anchor` must enforce the same `raw/` path boundary as `read_raw`, compute quote hashes server-side, and prefer the `sources` table SHA/mtime when present.
+- `search` uses the existing service search router; `fts+vector` downgrades to FTS with a warning; `min_confidence` is staged as a note.
+- `read_claim.sources` and inbound `graph_neighbors` are staged empty arrays with explanatory notes until `claim_sources` / `page_links` exist.
+- `get_history` resolves the actual page path, reads `git log -- <path>`, extracts `(seq=N)` from commit subjects, and joins change-log metadata when available. Non-seq commits use `op=git-direct`.
+
+### 4. Validation & Error Matrix
+- Malformed anchor -> `ErrAnchorMalformed`.
+- Heading miss -> `ErrHeadingNotFound`.
+- Paragraph out of range -> `ErrParaOutOfRange`.
+- Invalid char span -> `ErrCharSpanInvalid`.
+- `read_raw_anchor` outside `raw/` -> `ErrRawIDOutsideRaw`; missing raw file -> `ErrRawNotFound`.
+- `read_claim` missing or non-claim page -> `ErrClaimNotFound`.
+- `graph_neighbors depth > 1` -> `ErrDepthUnsupported`.
+- Invalid `search.filter.updated_since` -> wrapped RFC3339 parse error.
+
+### 5. Good/Base/Bad Cases
+- Good: `read_raw_anchor(raw_id, "#char[2:4]")` over `ab中文cd` returns `中文`, span `[2,4]`, and an 8-char quote hash.
+- Good: `graph_neighbors(direction="both")` returns outbound `[[...]]` refs plus a staged inbound note.
+- Base: `read_claim` returns the normal page fields with `sources: []` and `sources_note`.
+- Bad: calculating quote_hash in an agent instead of via `read_raw_anchor`; the daemon must be the authority.
+- Bad: returning byte spans for CJK content; consumers need rune spans for cross-platform consistency.
+
+### 6. Tests Required
+- `internal/index/anchor_test.go` must cover 50+ anchor/slug/span/hash boundary cases.
+- MCP server registration tests must assert all 9 read tools are registered and read-only.
+- MCP handler tests must cover each D9 tool happy path plus staged/error behavior: filters, anchor misses, non-claim pages, inbound notes, depth rejection, seq history, and git-direct history.
+- Project checks: `go test ./...`, `go build ./...`, `go vet ./...`; D9 requires at least 180 passing test/subtest events.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+```go
+hash := localAgentHash(quote)
+span := []int{byteStart, byteEnd}
+```
+
+#### Correct
+```go
+content, span, _ := index.ResolveAnchor(raw, "#char[2:4]")
+hash := index.QuoteHash(content)
+```
+
+</spec-entry>
+
 <spec-entry category="quality" keywords="git,change-log,append-only,revert,auto-commit" date="2026-05-24" source="internal/commit/commit.go:14;internal/commit/git.go:114;cmd/wikimind/command.go:423;internal/service/ingest.go:101">
 
 ## Scenario: W1 D6 Git-backed change log contract

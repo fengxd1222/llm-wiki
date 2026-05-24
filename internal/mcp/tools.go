@@ -1,18 +1,26 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
+	"github.com/fengxd1222/llm-wiki/internal/commit"
 	"github.com/fengxd1222/llm-wiki/internal/index"
 	"github.com/fengxd1222/llm-wiki/internal/service"
 	"github.com/fengxd1222/llm-wiki/internal/vault"
@@ -34,6 +42,12 @@ var ErrPageNotFound = errors.New("page not found")
 // ErrRawNotFound 表示 read_raw 解析后路径在 vault 内但文件不存在。
 var ErrRawNotFound = errors.New("raw file not found")
 
+// ErrClaimNotFound 表示 read_claim 没找到 type=claim 的 page。
+var ErrClaimNotFound = errors.New("claim not found")
+
+// ErrDepthUnsupported 表示 graph_neighbors 收到 D9 尚不支持的 depth。
+var ErrDepthUnsupported = errors.New("graph depth unsupported")
+
 // daemonVersion 在 wiki_info 响应中返回；与 cmd/wikimind 的 version 解耦
 // 一些——MCP 进程语义上是 daemon 角色（D10+ 由真正 daemon 接管前 staged）。
 const daemonVersion = "0.1.0-w2"
@@ -49,11 +63,18 @@ const (
 	backlinksNote = "backlinks require page_links table (W2 D10+)"
 )
 
-// formatNormalizedNote 留给 read_raw 拒绝 normalized 时返回，提示用户
-// 何时这条路径会通。
-const formatNormalizedNote = "normalized format requires stage-2 parser (W2 D9 with read_raw_anchor)"
+// formatNormalizedNote 留给 read_raw 拒绝 normalized 时返回，提示用户改用
+// D9 的 anchor 读取路径。
+const formatNormalizedNote = "normalized read_raw is not exposed; use read_raw_anchor for stage-2 anchored reads"
 
-// vaultBackend 把 4 个 tool 需要的依赖收拢为一个结构，让 server 构造时
+const (
+	claimSourcesStagedNote = "claim source validation requires claim_sources table (W2 D11+ propose_claim)"
+	inboundLinksStagedNote = "inbound links require page_links table (W2 D11+)"
+	minConfidenceNote      = "min_confidence filter requires claims confidence field (W2 D11+)"
+	vectorSearchWarning    = "fts+vector requested; embeddings are not available yet, downgraded to fts"
+)
+
+// vaultBackend 把 MCP tool 需要的依赖收拢为一个结构，让 server 构造时
 // 一次性传入；handler 通过闭包持有，避免每次 tool 调用走 context value 取值。
 type vaultBackend struct {
 	root string
@@ -335,6 +356,57 @@ func (b *vaultBackend) handleReadRaw(ctx context.Context, args ReadRawArgs) (Rea
 	return res, nil
 }
 
+// handleReadRawAnchor 实现 mcp-tools.md §5 read_raw_anchor。
+func (b *vaultBackend) handleReadRawAnchor(ctx context.Context, args ReadRawAnchorArgs) (ReadRawAnchorResult, error) {
+	rawID := strings.TrimSpace(args.RawID)
+	if rawID == "" {
+		return ReadRawAnchorResult{}, fmt.Errorf("read_raw_anchor: raw_id is required")
+	}
+	anchor := strings.TrimSpace(args.Anchor)
+	if anchor == "" {
+		return ReadRawAnchorResult{}, fmt.Errorf("read_raw_anchor: anchor is required")
+	}
+
+	posix, abs, err := b.resolveRawPath(rawID)
+	if err != nil {
+		return ReadRawAnchorResult{}, fmt.Errorf("read_raw_anchor: %w", err)
+	}
+	info, data, err := readExistingFile(abs, posix)
+	if err != nil {
+		if errors.Is(err, ErrRawNotFound) {
+			return ReadRawAnchorResult{}, err
+		}
+		return ReadRawAnchorResult{}, fmt.Errorf("read_raw_anchor: %w", err)
+	}
+	content, span, err := index.ResolveAnchor(data, anchor)
+	if err != nil {
+		return ReadRawAnchorResult{}, fmt.Errorf("read_raw_anchor: %w", err)
+	}
+
+	sourceMTime := info.ModTime().UTC()
+	sourceSHA := sha256Hex(data)
+	if src, err := index.FindSourceByRawID(ctx, b.db, posix); err != nil {
+		return ReadRawAnchorResult{}, fmt.Errorf("read_raw_anchor: query source: %w", err)
+	} else if src != nil {
+		if src.MTime > 0 {
+			sourceMTime = time.Unix(src.MTime, 0).UTC()
+		}
+		if src.SHA256 != "" {
+			sourceSHA = src.SHA256
+		}
+	}
+
+	return ReadRawAnchorResult{
+		RawID:        posix,
+		Anchor:       anchor,
+		Content:      content,
+		QuoteHash:    index.QuoteHash(content),
+		Span:         span,
+		SourceMTime:  sourceMTime.Format(time.RFC3339),
+		SourceSHA256: sourceSHA,
+	}, nil
+}
+
 // isTextual 用 http.DetectContentType 嗅探前 512 字节；text/* 视为文本。
 // 同时强校验 utf-8 合法性，防止把损坏的二进制当文本编返。
 func isTextual(data []byte) bool {
@@ -411,4 +483,403 @@ func (b *vaultBackend) handleListIndex(ctx context.Context, args ListIndexArgs) 
 		items = append(items, item)
 	}
 	return ListIndexResult{Total: total, Items: items}, nil
+}
+
+// handleSearch 实现 mcp-tools.md §8 search。
+func (b *vaultBackend) handleSearch(ctx context.Context, args SearchArgs) (SearchResult, error) {
+	start := time.Now()
+	q := strings.TrimSpace(args.Query)
+	if q == "" {
+		return SearchResult{Results: []SearchResultItem{}, TokenizerUsed: "like"}, nil
+	}
+	searchType := strings.TrimSpace(args.Type)
+	if searchType == "" {
+		searchType = "fts"
+	}
+	var warnings []string
+	if searchType == "fts+vector" {
+		warnings = append(warnings, vectorSearchWarning)
+		searchType = "fts"
+	}
+	if searchType != "fts" {
+		return SearchResult{}, fmt.Errorf("search: unknown type %q", args.Type)
+	}
+
+	limit := 20
+	if args.Limit != nil && *args.Limit > 0 {
+		limit = *args.Limit
+	}
+	searchLimit := limit
+	if args.Filter != nil {
+		searchLimit = limit * 5
+		if searchLimit < 50 {
+			searchLimit = 50
+		}
+	}
+	hits, err := service.Search(ctx, b.db, b.root, q, service.SearchOptions{Limit: searchLimit})
+	if err != nil {
+		return SearchResult{}, fmt.Errorf("search: %w", err)
+	}
+
+	updatedSince, err := parseUpdatedSince(args.Filter)
+	if err != nil {
+		return SearchResult{}, err
+	}
+	pageTypes := stringSet(nil)
+	statuses := stringSet(nil)
+	var notes []string
+	if args.Filter != nil {
+		pageTypes = stringSet(args.Filter.PageType)
+		statuses = stringSet(args.Filter.Status)
+		if args.Filter.MinConfidence != nil {
+			notes = append(notes, minConfidenceNote)
+		}
+	}
+
+	items := make([]SearchResultItem, 0, minInt(len(hits), limit))
+	tokenizer := tokenizerForQuery(q)
+	for _, hit := range hits {
+		if hit.Source != "" {
+			tokenizer = tokenizerFromSource(hit.Source)
+		}
+		if len(pageTypes) > 0 && !pageTypes[hit.Type] {
+			continue
+		}
+		var row *index.PageRow
+		if len(statuses) > 0 || !updatedSince.IsZero() {
+			row, err = index.GetPageByID(ctx, b.db, hit.PageID)
+			if err != nil {
+				return SearchResult{}, fmt.Errorf("search: load page %s: %w", hit.PageID, err)
+			}
+			if row == nil {
+				continue
+			}
+			if len(statuses) > 0 && !statuses[row.Status] {
+				continue
+			}
+			if !updatedSince.IsZero() && time.Unix(row.UpdatedAt, 0).Before(updatedSince) {
+				continue
+			}
+		}
+		if row == nil {
+			row, _ = index.GetPageByID(ctx, b.db, hit.PageID)
+		}
+		item := SearchResultItem{
+			PageID:  hit.PageID,
+			Title:   hit.Title,
+			Snippet: hit.Snippet,
+			Score:   hit.Score,
+		}
+		if row != nil && row.Confidence.Valid {
+			v := row.Confidence.Float64
+			item.Confidence = &v
+		}
+		items = append(items, item)
+		if len(items) >= limit {
+			break
+		}
+	}
+	return SearchResult{
+		Results:       items,
+		TokenizerUsed: tokenizer,
+		QueryTimeMS:   time.Since(start).Milliseconds(),
+		Warnings:      warnings,
+		Notes:         notes,
+	}, nil
+}
+
+// handleReadClaim 实现 mcp-tools.md §6 read_claim。
+func (b *vaultBackend) handleReadClaim(ctx context.Context, args ReadClaimArgs) (ReadClaimResult, error) {
+	id := strings.TrimSpace(args.ClaimID)
+	if id == "" {
+		return ReadClaimResult{}, fmt.Errorf("read_claim: claim_id is required")
+	}
+	row, err := index.GetPageByID(ctx, b.db, id)
+	if err != nil {
+		return ReadClaimResult{}, fmt.Errorf("read_claim: query page: %w", err)
+	}
+	if row == nil || row.Type != "claim" {
+		return ReadClaimResult{}, fmt.Errorf("%w: %s", ErrClaimNotFound, id)
+	}
+	page := pageRowToResult(row)
+	return ReadClaimResult{
+		ID:            page.ID,
+		Type:          page.Type,
+		Path:          page.Path,
+		Title:         page.Title,
+		Body:          page.Body,
+		Confidence:    page.Confidence,
+		Status:        page.Status,
+		SchemaVersion: page.SchemaVersion,
+		Frontmatter:   page.Frontmatter,
+		Sources:       []ClaimSourceStatus{},
+		SourcesNote:   claimSourcesStagedNote,
+	}, nil
+}
+
+// handleGraphNeighbors 实现 mcp-tools.md §9 graph_neighbors。
+func (b *vaultBackend) handleGraphNeighbors(ctx context.Context, args GraphNeighborsArgs) (GraphNeighborsResult, error) {
+	pageID := strings.TrimSpace(args.PageID)
+	if pageID == "" {
+		return GraphNeighborsResult{}, fmt.Errorf("graph_neighbors: page_id is required")
+	}
+	depth := 1
+	if args.Depth != nil && *args.Depth > 0 {
+		depth = *args.Depth
+	}
+	if depth != 1 {
+		return GraphNeighborsResult{}, fmt.Errorf("%w: depth=%d", ErrDepthUnsupported, depth)
+	}
+	direction := strings.TrimSpace(args.Direction)
+	if direction == "" {
+		direction = "both"
+	}
+	if direction != "out" && direction != "in" && direction != "both" {
+		return GraphNeighborsResult{}, fmt.Errorf("graph_neighbors: unknown direction %q", args.Direction)
+	}
+
+	var notes []string
+	var neighbors []GraphNeighbor
+	if direction == "in" || direction == "both" {
+		notes = append(notes, inboundLinksStagedNote)
+	}
+	if direction == "out" || direction == "both" {
+		rel, err := b.resolvePagePath(ctx, pageID)
+		if err != nil {
+			return GraphNeighborsResult{}, fmt.Errorf("graph_neighbors: %w", err)
+		}
+		if linkFilter := stringSet(args.LinkTypes); len(linkFilter) > 0 && !linkFilter["ref"] {
+			return GraphNeighborsResult{Neighbors: []GraphNeighbor{}, Notes: notes}, nil
+		}
+		abs, err := vault.ResolveInVault(rel, b.root)
+		if err != nil {
+			return GraphNeighborsResult{}, fmt.Errorf("graph_neighbors: %w", err)
+		}
+		parsed, err := service.ParsePage(abs)
+		if err != nil {
+			return GraphNeighborsResult{}, fmt.Errorf("graph_neighbors: parse page: %w", err)
+		}
+		for _, target := range parsed.Outbounds {
+			neighbor := GraphNeighbor{PageID: target, LinkType: "ref"}
+			if row, err := index.GetPageByID(ctx, b.db, target); err == nil && row != nil {
+				neighbor.Title = row.Title
+			}
+			neighbors = append(neighbors, neighbor)
+		}
+	}
+	if neighbors == nil {
+		neighbors = []GraphNeighbor{}
+	}
+	return GraphNeighborsResult{Neighbors: neighbors, Notes: notes}, nil
+}
+
+// handleGetHistory 实现 mcp-tools.md §10 get_history。
+func (b *vaultBackend) handleGetHistory(ctx context.Context, args GetHistoryArgs) (GetHistoryResult, error) {
+	pageID := strings.TrimSpace(args.PageID)
+	if pageID == "" {
+		return GetHistoryResult{}, fmt.Errorf("get_history: page_id is required")
+	}
+	rel, err := b.resolvePagePath(ctx, pageID)
+	if err != nil {
+		return GetHistoryResult{}, fmt.Errorf("get_history: %w", err)
+	}
+	limit := 20
+	if args.Limit != nil && *args.Limit > 0 {
+		limit = *args.Limit
+	}
+	out, err := runVaultGit(ctx, b.root,
+		"log", "--format=%H|%aI|%s", "-n", strconv.Itoa(limit), "--", filepath.FromSlash(rel))
+	if err != nil {
+		if strings.Contains(err.Error(), "does not have any commits yet") {
+			return GetHistoryResult{Commits: []HistoryCommit{}}, nil
+		}
+		return GetHistoryResult{}, fmt.Errorf("get_history: git log: %w", err)
+	}
+	var commits []HistoryCommit
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "|", 3)
+		if len(parts) != 3 {
+			continue
+		}
+		sha, ts, subject := parts[0], parts[1], parts[2]
+		hc := HistoryCommit{
+			SHA:         sha,
+			TS:          ts,
+			Actor:       "git",
+			Op:          "git-direct",
+			Summary:     subject,
+			DiffSummary: b.diffSummary(ctx, sha, rel),
+		}
+		if seq, ok := seqFromSubject(subject); ok {
+			if entry, err := commit.ReadEntryBySeq(b.root, seq); err == nil {
+				hc.Actor = entry.Actor
+				hc.Op = entry.Op
+				hc.BundleID = entry.Bundle
+				hc.Summary = entry.Summary
+			}
+		}
+		commits = append(commits, hc)
+	}
+	if commits == nil {
+		commits = []HistoryCommit{}
+	}
+	return GetHistoryResult{Commits: commits}, nil
+}
+
+func (b *vaultBackend) resolveRawPath(rawID string) (string, string, error) {
+	posix := vault.NormalizePath(rawID)
+	if !strings.HasPrefix(posix, "raw/") && posix != "raw" {
+		return "", "", fmt.Errorf("%w: %s", ErrRawIDOutsideRaw, rawID)
+	}
+	abs, err := vault.ResolveInVault(posix, b.root)
+	if err != nil {
+		return "", "", err
+	}
+	return posix, abs, nil
+}
+
+func readExistingFile(abs, display string) (os.FileInfo, []byte, error) {
+	info, err := os.Stat(abs)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil, fmt.Errorf("%w: %s", ErrRawNotFound, display)
+		}
+		return nil, nil, fmt.Errorf("stat: %w", err)
+	}
+	if info.IsDir() {
+		return nil, nil, fmt.Errorf("%s is a directory", display)
+	}
+	data, err := os.ReadFile(abs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("read: %w", err)
+	}
+	return info, data, nil
+}
+
+func sha256Hex(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
+}
+
+func parseUpdatedSince(filter *SearchFilter) (time.Time, error) {
+	if filter == nil || strings.TrimSpace(filter.UpdatedSince) == "" {
+		return time.Time{}, nil
+	}
+	t, err := time.Parse(time.RFC3339, strings.TrimSpace(filter.UpdatedSince))
+	if err != nil {
+		return time.Time{}, fmt.Errorf("search: invalid updated_since: %w", err)
+	}
+	return t, nil
+}
+
+func stringSet(values []string) map[string]bool {
+	if len(values) == 0 {
+		return nil
+	}
+	out := map[string]bool{}
+	for _, v := range values {
+		v = strings.TrimSpace(v)
+		if v != "" {
+			out[v] = true
+		}
+	}
+	return out
+}
+
+func tokenizerForQuery(q string) string {
+	if utf8.RuneCountInString(strings.TrimSpace(q)) < 3 {
+		return "like"
+	}
+	return "trigram"
+}
+
+func tokenizerFromSource(source string) string {
+	switch source {
+	case index.SearchSourceFTS5:
+		return "trigram"
+	case index.SearchSourceLike:
+		return "like"
+	case index.SearchSourceRipgrep:
+		return "ripgrep"
+	default:
+		return tokenizerForQuery(source)
+	}
+}
+
+func (b *vaultBackend) resolvePagePath(ctx context.Context, pageID string) (string, error) {
+	id := strings.TrimSpace(pageID)
+	if id == "" {
+		return "", ErrPageNotFound
+	}
+	if looksLikePath(id) {
+		return vault.NormalizePath(id), nil
+	}
+	row, err := index.GetPageByID(ctx, b.db, id)
+	if err != nil {
+		return "", fmt.Errorf("query page: %w", err)
+	}
+	if row == nil {
+		return "", fmt.Errorf("%w: %s", ErrPageNotFound, id)
+	}
+	return row.Path, nil
+}
+
+var seqSubjectRe = regexp.MustCompile(`\(seq=([0-9]+)\)`)
+
+func seqFromSubject(subject string) (int, bool) {
+	m := seqSubjectRe.FindStringSubmatch(subject)
+	if m == nil {
+		return 0, false
+	}
+	seq, err := strconv.Atoi(m[1])
+	return seq, err == nil
+}
+
+func (b *vaultBackend) diffSummary(ctx context.Context, sha, rel string) string {
+	out, err := runVaultGit(ctx, b.root, "show", "--numstat", "--format=", sha, "--", filepath.FromSlash(rel))
+	if err != nil {
+		return ""
+	}
+	added, deleted := 0, 0
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 || fields[0] == "-" || fields[1] == "-" {
+			continue
+		}
+		a, errA := strconv.Atoi(fields[0])
+		d, errD := strconv.Atoi(fields[1])
+		if errA == nil {
+			added += a
+		}
+		if errD == nil {
+			deleted += d
+		}
+	}
+	return fmt.Sprintf("+%d -%d", added, deleted)
+}
+
+func runVaultGit(ctx context.Context, vaultRoot string, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Dir = vaultRoot
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		msg := strings.TrimSpace(stderr.String())
+		if msg == "" {
+			msg = err.Error()
+		}
+		return stdout.String(), errors.New(msg)
+	}
+	return stdout.String(), nil
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

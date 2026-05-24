@@ -23,9 +23,9 @@ func TestNewServerRejectsBadInputs(t *testing.T) {
 	}
 }
 
-// TestNewServerListsFourTools 跑 in-memory transport 上 server↔client
-// 全链路，验证 4 个只读 tool 都被注册。
-func TestNewServerListsFourTools(t *testing.T) {
+// TestNewServerListsReadTools 跑 in-memory transport 上 server↔client
+// 全链路，验证 D8+D9 的 9 个只读 tool 都被注册。
+func TestNewServerListsReadTools(t *testing.T) {
 	ctx := context.Background()
 	root, db := setupVaultWithIndex(t)
 	t.Cleanup(func() { _ = db.Close() })
@@ -37,10 +37,15 @@ func TestNewServerListsFourTools(t *testing.T) {
 
 	tools := listToolsViaTransport(t, ctx, server)
 	wantNames := map[string]bool{
-		"wiki_info":  false,
-		"read_page":  false,
-		"read_raw":   false,
-		"list_index": false,
+		"wiki_info":       false,
+		"read_page":       false,
+		"read_raw":        false,
+		"list_index":      false,
+		"read_raw_anchor": false,
+		"read_claim":      false,
+		"search":          false,
+		"graph_neighbors": false,
+		"get_history":     false,
 	}
 	for _, tool := range tools {
 		if _, ok := wantNames[tool.Name]; ok {
@@ -56,6 +61,9 @@ func TestNewServerListsFourTools(t *testing.T) {
 		if !found {
 			t.Errorf("tool %q not registered", name)
 		}
+	}
+	if len(tools) != len(wantNames) {
+		t.Errorf("tool count = %d, want %d", len(tools), len(wantNames))
 	}
 }
 

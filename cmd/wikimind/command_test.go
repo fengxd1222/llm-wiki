@@ -583,7 +583,7 @@ schema_version: "1.0"
 }
 
 // TestMcpServeCommandRegistered 不实跑 stdio——只验证 `wikimind mcp serve`
-// 命令存在、--vault flag 暴露、help 文本指明 4 个 D8 tool。
+// 命令存在、--vault flag 暴露、help 文本指明 D8+D9 read tools。
 // stdio 通路无法 mock os.Stdin/os.Stdout，端到端验证留 docs/demo/mcp-inspector.md
 // 手动执行。
 func TestMcpServeCommandRegistered(t *testing.T) {
@@ -600,6 +600,11 @@ func TestMcpServeCommandRegistered(t *testing.T) {
 		"read_page",
 		"read_raw",
 		"list_index",
+		"search",
+		"read_raw_anchor",
+		"read_claim",
+		"graph_neighbors",
+		"get_history",
 		"--vault",
 	} {
 		if !strings.Contains(help, want) {

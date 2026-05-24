@@ -44,6 +44,26 @@ FROM sources WHERE sha256 = ? LIMIT 1`
 	return &s, nil
 }
 
+// FindSourceByRawID 按 raw_id 命中已入仓的 source；未命中返回 (nil, nil)。
+func FindSourceByRawID(ctx context.Context, db *DB, rawID string) (*SourceRow, error) {
+	if db == nil || db.SQL() == nil {
+		return nil, ErrIndexUnavailable
+	}
+	const q = `SELECT raw_id, sha256, size, mtime, status,
+       COALESCE(ingested_at, 0), COALESCE(parser, ''), COALESCE(metadata, '')
+FROM sources WHERE raw_id = ? LIMIT 1`
+	row := db.SQL().QueryRowContext(ctx, q, rawID)
+	var s SourceRow
+	if err := row.Scan(&s.RawID, &s.SHA256, &s.Size, &s.MTime, &s.Status,
+		&s.IngestedAt, &s.Parser, &s.Metadata); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("query sources by raw_id: %w", err)
+	}
+	return &s, nil
+}
+
 // DeleteSourceByRawID 按 raw_id 删除一行 source。未命中视为成功（best-effort 回滚用）。
 func DeleteSourceByRawID(ctx context.Context, db *DB, rawID string) error {
 	if db == nil || db.SQL() == nil {
