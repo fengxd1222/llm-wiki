@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // ErrReviewNotFound indicates that a requested review row does not exist.
@@ -84,6 +85,29 @@ func ListReviewsByStatus(ctx context.Context, db *DB, status string) ([]*ReviewR
 	return scanReviewRows(rows)
 }
 
+// FindReviewByIdempotencyKey returns an existing review for an agent/key pair.
+func FindReviewByIdempotencyKey(ctx context.Context, db *DB, agent, key string) (*ReviewRow, error) {
+	if db == nil || db.SQL() == nil {
+		return nil, ErrIndexUnavailable
+	}
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return nil, nil
+	}
+	pattern := `%"idempotency_key":"` + key + `"%`
+	row := db.SQL().QueryRowContext(ctx,
+		reviewSelectSQL+` WHERE agent = ? AND meta_json LIKE ? ORDER BY seq LIMIT 1`,
+		agent, pattern)
+	got, err := scanReviewRow(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("query review by idempotency key: %w", err)
+	}
+	return got, nil
+}
+
 // CountReviewsByStatus counts reviews matching a status.
 func CountReviewsByStatus(ctx context.Context, db *DB, status string) (int, error) {
 	if db == nil || db.SQL() == nil {
@@ -96,6 +120,29 @@ func CountReviewsByStatus(ctx context.Context, db *DB, status string) (int, erro
 		return 0, fmt.Errorf("count reviews by status: %w", err)
 	}
 	return count, nil
+}
+
+// AssignReviewsToBundle attaches pending reviews to a bundle.
+func AssignReviewsToBundle(ctx context.Context, db *DB, bundleID string, reviewIDs []string) error {
+	if db == nil || db.SQL() == nil {
+		return ErrIndexUnavailable
+	}
+	for _, id := range reviewIDs {
+		res, err := db.SQL().ExecContext(ctx,
+			`UPDATE reviews SET bundle_id = ? WHERE id = ? AND COALESCE(bundle_id, '') = ''`,
+			bundleID, id)
+		if err != nil {
+			return fmt.Errorf("assign review %s to bundle %s: %w", id, bundleID, err)
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("assign review %s rows affected: %w", id, err)
+		}
+		if n == 0 {
+			return fmt.Errorf("%w: %s", ErrReviewNotFound, id)
+		}
+	}
+	return nil
 }
 
 // GetReviewByID returns one review row.

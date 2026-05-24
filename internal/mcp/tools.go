@@ -22,6 +22,7 @@ import (
 
 	"github.com/fengxd1222/llm-wiki/internal/commit"
 	"github.com/fengxd1222/llm-wiki/internal/index"
+	"github.com/fengxd1222/llm-wiki/internal/proposal"
 	"github.com/fengxd1222/llm-wiki/internal/service"
 	"github.com/fengxd1222/llm-wiki/internal/vault"
 	worktreepkg "github.com/fengxd1222/llm-wiki/internal/worktree"
@@ -183,6 +184,7 @@ func (b *vaultBackend) handleAgentHandshake(ctx context.Context, args AgentHands
 		return AgentHandshakeResult{}, fmt.Errorf("%w: %w", ErrWorktreeCreateFailed, err)
 	}
 	sess.WorktreePath = wt.Path
+	sess.Branch = wt.Branch
 
 	rel, err := filepath.Rel(b.root, wt.Path)
 	if err != nil {
@@ -198,6 +200,297 @@ func (b *vaultBackend) handleAgentHandshake(ctx context.Context, args AgentHands
 	base.SessionToken = token
 	base.QueueState.CanPropose = pending < base.QueueState.HardLimit
 	return base, nil
+}
+
+func (b *vaultBackend) handleProposePage(ctx context.Context, args ProposePageArgs) (ProposeResult, error) {
+	sess, err := b.authenticateWrite(args.SessionToken)
+	if err != nil {
+		return ProposeResult{}, err
+	}
+	if existing, err := index.FindReviewByIdempotencyKey(ctx, b.db, sess.Agent, args.IdempotencyKey); err != nil {
+		return ProposeResult{}, err
+	} else if existing != nil {
+		return ProposeResult{
+			ReviewID: existing.ID,
+			Status:   existing.Status,
+			Validations: ValidationBlock{
+				SchemaCheck:    "passed",
+				QuoteHashCheck: "skipped",
+				PathCheck:      "passed",
+			},
+		}, nil
+	}
+	if err := proposal.ValidatePath(args.Path, args.Type); err != nil {
+		return ProposeResult{}, err
+	}
+	if err := proposal.ValidateFrontmatter(args.Frontmatter, args.Type); err != nil {
+		return ProposeResult{}, err
+	}
+	if err := b.writePageInWorktree(ctx, sess, args.Path, args.Frontmatter, args.Body); err != nil {
+		return ProposeResult{}, err
+	}
+	patch, err := proposal.GeneratePatch(ctx, sess.WorktreePath, sess.Branch, args.Path)
+	if err != nil {
+		return ProposeResult{}, err
+	}
+	review, err := b.insertPatchReview(ctx, sess, "propose_page", args.Path, patch, map[string]any{
+		"idempotency_key": args.IdempotencyKey,
+		"path":            args.Path,
+		"type":            args.Type,
+	})
+	if err != nil {
+		return ProposeResult{}, err
+	}
+	return ProposeResult{
+		ReviewID: review.ID,
+		Status:   review.Status,
+		Validations: ValidationBlock{
+			SchemaCheck:    "passed",
+			QuoteHashCheck: "skipped",
+			PathCheck:      "passed",
+		},
+	}, nil
+}
+
+func (b *vaultBackend) handleProposeEdit(ctx context.Context, args ProposeEditArgs) (ProposeResult, error) {
+	sess, err := b.authenticateWrite(args.SessionToken)
+	if err != nil {
+		return ProposeResult{}, err
+	}
+	if existing, err := index.FindReviewByIdempotencyKey(ctx, b.db, sess.Agent, args.IdempotencyKey); err != nil {
+		return ProposeResult{}, err
+	} else if existing != nil {
+		return ProposeResult{ReviewID: existing.ID, Status: existing.Status,
+			Validations: ValidationBlock{SchemaCheck: "passed", QuoteHashCheck: "skipped", PathCheck: "passed", BaseHashCheck: "passed"}}, nil
+	}
+	pagePath, err := b.resolvePagePath(ctx, args.PageID)
+	if err != nil {
+		return ProposeResult{}, err
+	}
+	if err := proposal.ValidateBaseHash(ctx, b.root, pagePath, args.BaseHash); err != nil {
+		return ProposeResult{}, err
+	}
+	if strings.TrimSpace(args.Patch.UnifiedDiff) != "" {
+		if err := proposal.ApplyPatch(ctx, sess.WorktreePath, []byte(args.Patch.UnifiedDiff)); err != nil {
+			return ProposeResult{}, err
+		}
+	} else {
+		if err := b.applyFrontmatterBodyEdit(ctx, sess, pagePath, args.Patch.FrontmatterChanges, args.Patch.Body); err != nil {
+			return ProposeResult{}, err
+		}
+	}
+	patch, err := proposal.GeneratePatch(ctx, sess.WorktreePath, sess.Branch, pagePath)
+	if err != nil {
+		return ProposeResult{}, err
+	}
+	review, err := b.insertPatchReview(ctx, sess, "propose_edit", args.PageID, patch, map[string]any{
+		"idempotency_key": args.IdempotencyKey,
+		"page_id":         args.PageID,
+		"path":            pagePath,
+		"summary":         args.Summary,
+	})
+	if err != nil {
+		return ProposeResult{}, err
+	}
+	return ProposeResult{
+		ReviewID: review.ID,
+		Status:   review.Status,
+		Validations: ValidationBlock{
+			SchemaCheck:    "passed",
+			QuoteHashCheck: "skipped",
+			PathCheck:      "passed",
+			BaseHashCheck:  "passed",
+		},
+	}, nil
+}
+
+func (b *vaultBackend) handleProposeClaim(ctx context.Context, args ProposeClaimArgs) (ProposeResult, error) {
+	sess, err := b.authenticateWrite(args.SessionToken)
+	if err != nil {
+		return ProposeResult{}, err
+	}
+	if existing, err := index.FindReviewByIdempotencyKey(ctx, b.db, sess.Agent, args.IdempotencyKey); err != nil {
+		return ProposeResult{}, err
+	} else if existing != nil {
+		return ProposeResult{ReviewID: existing.ID, Status: existing.Status,
+			Validations: ValidationBlock{SchemaCheck: "passed", QuoteHashCheck: "passed", PathCheck: "passed"}}, nil
+	}
+	if err := proposal.ValidateClaimID(args.ClaimID); err != nil {
+		return ProposeResult{}, err
+	}
+	if strings.TrimSpace(args.Title) == "" || len([]rune(args.Title)) > 100 {
+		return ProposeResult{}, fmt.Errorf("%w: invalid claim title", proposal.ErrSchemaViolation)
+	}
+	if args.Confidence < 0 || args.Confidence > 1 {
+		return ProposeResult{}, fmt.Errorf("%w: confidence out of range", proposal.ErrSchemaViolation)
+	}
+	sources := claimSourcesToProposal(args.Sources)
+	if len(sources) == 0 && !args.Speculation {
+		return ProposeResult{}, fmt.Errorf("%w: sources required", proposal.ErrSchemaViolation)
+	}
+	if len(sources) > 0 {
+		if err := proposal.ValidateClaimSources(ctx, b.root, sources); err != nil {
+			return ProposeResult{}, err
+		}
+	}
+	status := strings.TrimSpace(args.Status)
+	if status == "" {
+		if args.Speculation {
+			status = "speculation"
+		} else {
+			status = "unverified"
+		}
+	}
+	if !validClaimStatus(status) {
+		return ProposeResult{}, fmt.Errorf("%w: invalid claim status %q", proposal.ErrSchemaViolation, args.Status)
+	}
+	path := "wiki/claims/" + args.ClaimID + ".md"
+	fm := map[string]any{
+		"id":             args.ClaimID,
+		"type":           "claim",
+		"title":          args.Title,
+		"schema_version": fallbackSchemaVersion,
+		"confidence":     args.Confidence,
+		"status":         status,
+		"sources":        args.Sources,
+	}
+	if args.Speculation {
+		fm["speculation"] = true
+	}
+	if len(args.Related) > 0 {
+		fm["related"] = args.Related
+	}
+	if err := proposal.ValidatePath(path, "claim"); err != nil {
+		return ProposeResult{}, err
+	}
+	if err := proposal.ValidateFrontmatter(fm, "claim"); err != nil {
+		return ProposeResult{}, err
+	}
+	if err := b.writePageInWorktree(ctx, sess, path, fm, args.Body); err != nil {
+		return ProposeResult{}, err
+	}
+	patch, err := proposal.GeneratePatch(ctx, sess.WorktreePath, sess.Branch, path)
+	if err != nil {
+		return ProposeResult{}, err
+	}
+	review, err := b.insertPatchReview(ctx, sess, "propose_claim", args.ClaimID, patch, map[string]any{
+		"idempotency_key": args.IdempotencyKey,
+		"claim_id":        args.ClaimID,
+		"path":            path,
+		"confidence":      args.Confidence,
+	})
+	if err != nil {
+		return ProposeResult{}, err
+	}
+	return ProposeResult{
+		ReviewID: review.ID,
+		Status:   review.Status,
+		Validations: ValidationBlock{
+			SchemaCheck:    "passed",
+			QuoteHashCheck: "passed",
+			PathCheck:      "passed",
+		},
+	}, nil
+}
+
+func (b *vaultBackend) handleRequestReview(ctx context.Context, args RequestReviewArgs) (RequestReviewResult, error) {
+	sess, err := b.authenticateWrite(args.SessionToken)
+	if err != nil {
+		return RequestReviewResult{}, err
+	}
+	if len(args.ReviewIDs) == 0 {
+		return RequestReviewResult{}, fmt.Errorf("%w: review_ids required", proposal.ErrSchemaViolation)
+	}
+	title := strings.TrimSpace(args.Title)
+	if title == "" {
+		return RequestReviewResult{}, fmt.Errorf("%w: title required", proposal.ErrSchemaViolation)
+	}
+	kind := strings.TrimSpace(args.Kind)
+	if !validReviewKind(kind) {
+		return RequestReviewResult{}, fmt.Errorf("%w: invalid review kind %q", proposal.ErrSchemaViolation, args.Kind)
+	}
+	priorityHint := strings.TrimSpace(args.PriorityHint)
+	if priorityHint == "" {
+		priorityHint = "normal"
+	}
+	if !validPriorityHint(priorityHint) {
+		return RequestReviewResult{}, fmt.Errorf("%w: invalid priority_hint %q", proposal.ErrSchemaViolation, args.PriorityHint)
+	}
+	for _, id := range args.ReviewIDs {
+		review, err := index.GetReviewByID(ctx, b.db, id)
+		if err != nil {
+			return RequestReviewResult{}, err
+		}
+		if review.Agent != sess.Agent || review.SessionID != sess.SessionID {
+			return RequestReviewResult{}, errors.New("CROSS_SESSION_BUNDLE")
+		}
+		if review.Status != "pending" {
+			return RequestReviewResult{}, fmt.Errorf("%w: review %s is %s", proposal.ErrSchemaViolation, id, review.Status)
+		}
+		if review.BundleID != "" {
+			return RequestReviewResult{}, errors.New("REVIEW_ALREADY_BUNDLED")
+		}
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	seq, err := index.NextBundleSeq(ctx, b.db)
+	if err != nil {
+		return RequestReviewResult{}, err
+	}
+	bundleID := index.BundleID(seq)
+	if err := index.InsertBundle(ctx, b.db, &index.BundleRow{
+		ID:          bundleID,
+		Seq:         seq,
+		Agent:       sess.Agent,
+		SessionID:   sess.SessionID,
+		Summary:     title,
+		Status:      "submitted",
+		CreatedAt:   now,
+		SubmittedAt: now,
+	}); err != nil {
+		return RequestReviewResult{}, err
+	}
+	if err := index.AssignReviewsToBundle(ctx, b.db, bundleID, args.ReviewIDs); err != nil {
+		return RequestReviewResult{}, err
+	}
+	openBundles, err := index.CountBundlesByStatus(ctx, b.db, "submitted")
+	if err != nil {
+		return RequestReviewResult{}, err
+	}
+	score := priorityScore(kind, priorityHint, len(args.ReviewIDs))
+	return RequestReviewResult{
+		BundleID:      bundleID,
+		ReviewIDs:     append([]string(nil), args.ReviewIDs...),
+		PriorityScore: score,
+		QueuePosition: openBundles,
+	}, nil
+}
+
+func (b *vaultBackend) handleLogAppend(ctx context.Context, args LogAppendArgs) (LogAppendResult, error) {
+	sess, err := b.authenticateWrite(args.SessionToken)
+	if err != nil {
+		return LogAppendResult{}, err
+	}
+	if !validLogCategory(args.Category) {
+		return LogAppendResult{}, fmt.Errorf("%w: invalid category %q", proposal.ErrSchemaViolation, args.Category)
+	}
+	message := strings.TrimSpace(args.Message)
+	if message == "" || len([]rune(message)) > 500 {
+		return LogAppendResult{}, fmt.Errorf("%w: message length", proposal.ErrSchemaViolation)
+	}
+	summary := args.Category + ": " + truncateRunes(message, 80)
+	if len(args.Links) > 0 {
+		summary += " " + strings.Join(args.Links, " ")
+	}
+	entry, err := commit.CommitWithActor(ctx, b.root, sess.Agent, "append_log", summary, nil)
+	if err != nil {
+		return LogAppendResult{}, err
+	}
+	return LogAppendResult{
+		Seq:    entry.Seq,
+		SHA:    entry.GitSHA,
+		TS:     entry.Timestamp,
+		Status: "appended",
+	}, nil
 }
 
 // handleWikiInfo 实现 mcp-tools.md §2 wiki_info。
@@ -350,6 +643,7 @@ func pageRowToResult(row *index.PageRow) ReadPageResult {
 		Path:          row.Path,
 		Title:         row.Title,
 		Body:          row.Body,
+		ContentHash:   proposal.PageContentHashFromJSON(row.Frontmatter, row.Body),
 		Status:        row.Status,
 		SchemaVersion: row.SchemaVersion,
 		Frontmatter:   row.Frontmatter,
@@ -398,6 +692,7 @@ func parsedPageToResult(rel string, p *service.ParsedPage) ReadPageResult {
 			res.Frontmatter = string(raw)
 		}
 	}
+	res.ContentHash = proposal.PageContentHash(p.Frontmatter, p.Body)
 	if res.Title == "" {
 		for _, h := range p.Headings {
 			if h.Level == 1 && h.Text != "" {
@@ -1023,6 +1318,192 @@ func schemaMajor(version string) string {
 		return major
 	}
 	return version
+}
+
+func (b *vaultBackend) authenticateWrite(token string) (*Session, error) {
+	sess, err := b.sessionStore().Authenticate(token)
+	if err != nil {
+		return nil, err
+	}
+	b.sessionStore().Touch(sess.Token)
+	return sess, nil
+}
+
+func (b *vaultBackend) writePageInWorktree(ctx context.Context, sess *Session, rel string, fm map[string]any, body string) error {
+	if strings.TrimSpace(sess.WorktreePath) == "" {
+		return errors.New("SESSION_REQUIRED: missing worktree")
+	}
+	if err := worktreepkg.IsWorktreeWriteAllowed(rel); err != nil {
+		return err
+	}
+	abs, err := vault.ResolveInVault(rel, sess.WorktreePath)
+	if err != nil {
+		return fmt.Errorf("worktree path: %w", err)
+	}
+	content, err := proposal.EncodePage(fm, body)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+		return fmt.Errorf("create worktree page dir: %w", err)
+	}
+	if err := os.WriteFile(abs, content, 0o644); err != nil {
+		return fmt.Errorf("write worktree page %s: %w", rel, err)
+	}
+	if err := proposal.StagePath(ctx, sess.WorktreePath, rel); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (b *vaultBackend) applyFrontmatterBodyEdit(ctx context.Context, sess *Session, rel string, changes map[string]any, body string) error {
+	if strings.TrimSpace(sess.WorktreePath) == "" {
+		return errors.New("SESSION_REQUIRED: missing worktree")
+	}
+	if err := worktreepkg.IsWorktreeWriteAllowed(rel); err != nil {
+		return err
+	}
+	abs, err := vault.ResolveInVault(rel, sess.WorktreePath)
+	if err != nil {
+		return fmt.Errorf("worktree path: %w", err)
+	}
+	parsed, err := service.ParsePage(abs)
+	if err != nil {
+		return fmt.Errorf("parse worktree page: %w", err)
+	}
+	fm := map[string]any{}
+	for k, v := range parsed.Frontmatter {
+		fm[k] = v
+	}
+	for k, v := range changes {
+		if v == nil {
+			delete(fm, k)
+			continue
+		}
+		fm[k] = v
+	}
+	if strings.TrimSpace(body) == "" {
+		body = parsed.Body
+	}
+	content, err := proposal.EncodePage(fm, body)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(abs, content, 0o644); err != nil {
+		return fmt.Errorf("write worktree page %s: %w", rel, err)
+	}
+	return proposal.StagePath(ctx, sess.WorktreePath, rel)
+}
+
+func (b *vaultBackend) insertPatchReview(
+	ctx context.Context,
+	sess *Session,
+	op string,
+	target string,
+	patch []byte,
+	meta map[string]any,
+) (*index.ReviewRow, error) {
+	seq, err := index.NextReviewSeq(ctx, b.db)
+	if err != nil {
+		return nil, err
+	}
+	reviewID := index.ReviewID(seq)
+	patchPath, err := proposal.WritePatchFile(ctx, b.root, reviewID, patch)
+	if err != nil {
+		return nil, err
+	}
+	metaJSON, err := json.Marshal(meta)
+	if err != nil {
+		return nil, fmt.Errorf("marshal review meta: %w", err)
+	}
+	row := &index.ReviewRow{
+		ID:           reviewID,
+		Seq:          seq,
+		Agent:        sess.Agent,
+		SessionID:    sess.SessionID,
+		Op:           op,
+		TargetPageID: target,
+		PatchPath:    patchPath,
+		Status:       "pending",
+		CreatedAt:    time.Now().UTC().Format(time.RFC3339),
+		MetaJSON:     string(metaJSON),
+	}
+	if err := index.InsertReview(ctx, b.db, row); err != nil {
+		return nil, err
+	}
+	return row, nil
+}
+
+func claimSourcesToProposal(in []ClaimSourceArg) []proposal.ClaimSource {
+	out := make([]proposal.ClaimSource, 0, len(in))
+	for _, src := range in {
+		out = append(out, proposal.ClaimSource{
+			RawID:     src.RawID,
+			Anchor:    src.Anchor,
+			Quote:     src.Quote,
+			QuoteHash: src.QuoteHash,
+			Span:      append([]int(nil), src.Span...),
+		})
+	}
+	return out
+}
+
+func priorityScore(kind, hint string, reviewCount int) int {
+	score := 100
+	if kind == "lint_fix" {
+		score = 50
+	}
+	switch hint {
+	case "critical":
+		score += 50
+	case "low":
+		score -= 30
+	}
+	return score + reviewCount
+}
+
+func validClaimStatus(status string) bool {
+	switch status {
+	case "unverified", "supported", "speculation":
+		return true
+	default:
+		return false
+	}
+}
+
+func validReviewKind(kind string) bool {
+	switch kind {
+	case "ingest", "lint_fix", "query_sediment", "dream_cycle", "custom":
+		return true
+	default:
+		return false
+	}
+}
+
+func validPriorityHint(hint string) bool {
+	switch hint {
+	case "critical", "normal", "low":
+		return true
+	default:
+		return false
+	}
+}
+
+func validLogCategory(category string) bool {
+	switch category {
+	case "agent_note", "dream_cycle_report", "lint_summary", "milestone":
+		return true
+	default:
+		return false
+	}
+}
+
+func truncateRunes(s string, max int) string {
+	r := []rune(strings.TrimSpace(s))
+	if len(r) <= max {
+		return string(r)
+	}
+	return string(r[:max])
 }
 
 func minInt(a, b int) int {

@@ -24,7 +24,7 @@ func TestNewServerRejectsBadInputs(t *testing.T) {
 }
 
 // TestNewServerListsTools 跑 in-memory transport 上 server↔client
-// 全链路，验证 D8+D9 的 9 个只读 tool + D10 agent_handshake 都被注册。
+// 全链路，验证 D8+D9 的 9 个只读 tool + D10 handshake + D11 写 tool 都被注册。
 func TestNewServerListsTools(t *testing.T) {
 	ctx := context.Background()
 	root, db := setupVaultWithIndex(t)
@@ -47,12 +47,25 @@ func TestNewServerListsTools(t *testing.T) {
 		"search":          false,
 		"graph_neighbors": false,
 		"get_history":     false,
+		"propose_page":    false,
+		"propose_edit":    false,
+		"propose_claim":   false,
+		"request_review":  false,
+		"log_append":      false,
+	}
+	writeTools := map[string]bool{
+		"agent_handshake": true,
+		"propose_page":    true,
+		"propose_edit":    true,
+		"propose_claim":   true,
+		"request_review":  true,
+		"log_append":      true,
 	}
 	for _, tool := range tools {
 		if _, ok := wantNames[tool.Name]; ok {
 			wantNames[tool.Name] = true
 		}
-		if tool.Name == "agent_handshake" {
+		if writeTools[tool.Name] {
 			if tool.Annotations == nil || tool.Annotations.ReadOnlyHint {
 				t.Errorf("tool %q should have ReadOnlyHint=false", tool.Name)
 			}

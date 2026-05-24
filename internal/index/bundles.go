@@ -62,6 +62,20 @@ func InsertBundle(ctx context.Context, db *DB, row *BundleRow) error {
 	return nil
 }
 
+// CountBundlesByStatus counts bundles matching status.
+func CountBundlesByStatus(ctx context.Context, db *DB, status string) (int, error) {
+	if db == nil || db.SQL() == nil {
+		return 0, ErrIndexUnavailable
+	}
+	var count int
+	if err := db.SQL().QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM bundles WHERE status = ?`, status,
+	).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count bundles by status: %w", err)
+	}
+	return count, nil
+}
+
 // GetBundleByID returns one bundle row.
 func GetBundleByID(ctx context.Context, db *DB, id string) (*BundleRow, error) {
 	if db == nil || db.SQL() == nil {

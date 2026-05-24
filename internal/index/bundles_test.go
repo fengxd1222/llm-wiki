@@ -42,6 +42,13 @@ func TestBundleCRUD(t *testing.T) {
 		got.Summary != row.Summary || got.Status != row.Status {
 		t.Fatalf("bundle row mismatch: %+v want %+v", got, row)
 	}
+	count, err := CountBundlesByStatus(ctx, db, "open")
+	if err != nil {
+		t.Fatalf("CountBundlesByStatus: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("open bundle count = %d, want 1", count)
+	}
 }
 
 func TestBundleNotFound(t *testing.T) {

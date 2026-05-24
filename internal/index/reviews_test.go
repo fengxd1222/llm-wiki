@@ -86,3 +86,39 @@ func TestReviewNotFound(t *testing.T) {
 		t.Fatalf("UpdateReviewStatus err = %v, want ErrReviewNotFound", err)
 	}
 }
+
+func TestReviewIdempotencyAndAssignBundle(t *testing.T) {
+	ctx := context.Background()
+	db := openTempDB(t)
+	row := &ReviewRow{
+		ID:        "r-0001",
+		Seq:       1,
+		Agent:     "codex-cli",
+		SessionID: "sess-1",
+		Op:        "propose_page",
+		PatchPath: "wiki/_review/r-0001.patch",
+		Status:    "pending",
+		CreatedAt: "2026-05-24T12:00:00Z",
+		MetaJSON:  `{"idempotency_key":"abc","path":"wiki/claims/a.md"}`,
+	}
+	if err := InsertReview(ctx, db, row); err != nil {
+		t.Fatalf("InsertReview: %v", err)
+	}
+	got, err := FindReviewByIdempotencyKey(ctx, db, "codex-cli", "abc")
+	if err != nil {
+		t.Fatalf("FindReviewByIdempotencyKey: %v", err)
+	}
+	if got == nil || got.ID != "r-0001" {
+		t.Fatalf("idempotency lookup = %+v, want r-0001", got)
+	}
+	if err := AssignReviewsToBundle(ctx, db, "b-0001", []string{"r-0001"}); err != nil {
+		t.Fatalf("AssignReviewsToBundle: %v", err)
+	}
+	got, err = GetReviewByID(ctx, db, "r-0001")
+	if err != nil {
+		t.Fatalf("GetReviewByID: %v", err)
+	}
+	if got.BundleID != "b-0001" {
+		t.Fatalf("BundleID = %q, want b-0001", got.BundleID)
+	}
+}

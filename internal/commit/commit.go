@@ -29,6 +29,11 @@ var commitMu sync.Mutex
 //
 // 返回的 LogEntry.GitSHA 是本次 commit 的 short sha；jsonl 中保留 ""。
 func Commit(ctx context.Context, vaultRoot, op, summary string, files []string) (*LogEntry, error) {
+	return CommitWithActor(ctx, vaultRoot, defaultActor, op, summary, files)
+}
+
+// CommitWithActor is Commit with an explicit actor for MCP-managed writes.
+func CommitWithActor(ctx context.Context, vaultRoot, actor, op, summary string, files []string) (*LogEntry, error) {
 	commitMu.Lock()
 	defer commitMu.Unlock()
 
@@ -45,7 +50,7 @@ func Commit(ctx context.Context, vaultRoot, op, summary string, files []string) 
 		Seq:       seq,
 		GitSHA:    "", // ADR-lite: 留空，revert 时用 commit message 反查
 		Timestamp: time.Now().UTC().Format(timestampLayout),
-		Actor:     defaultActor,
+		Actor:     actor,
 		Op:        op,
 		Summary:   summary,
 	}
@@ -82,4 +87,3 @@ func Commit(ctx context.Context, vaultRoot, op, summary string, files []string) 
 	entry.GitSHA = sha
 	return &entry, nil
 }
-

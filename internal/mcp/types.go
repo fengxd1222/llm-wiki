@@ -34,6 +34,95 @@ type AgentHandshakeResult struct {
 	AcceptedCapabilities []string        `json:"accepted_capabilities,omitempty"`
 }
 
+// ValidationBlock mirrors propose_* validation status fields.
+type ValidationBlock struct {
+	SchemaCheck    string   `json:"schema_check"`
+	QuoteHashCheck string   `json:"quote_hash_check"`
+	PathCheck      string   `json:"path_check"`
+	BaseHashCheck  string   `json:"base_hash_check,omitempty"`
+	Errors         []string `json:"errors,omitempty"`
+}
+
+type ProposePageArgs struct {
+	SessionToken   string         `json:"session_token" jsonschema:"session token from agent_handshake"`
+	Path           string         `json:"path"`
+	Type           string         `json:"type" jsonschema:"claim|entity|concept|source|topic"`
+	Frontmatter    map[string]any `json:"frontmatter"`
+	Body           string         `json:"body"`
+	IdempotencyKey string         `json:"idempotency_key,omitempty"`
+}
+
+type ProposeResult struct {
+	ReviewID    string          `json:"review_id"`
+	Status      string          `json:"status"`
+	Validations ValidationBlock `json:"validations"`
+}
+
+type ProposeEditArgs struct {
+	SessionToken   string    `json:"session_token" jsonschema:"session token from agent_handshake"`
+	PageID         string    `json:"page_id"`
+	BaseHash       string    `json:"base_hash"`
+	Patch          EditPatch `json:"patch"`
+	Summary        string    `json:"summary,omitempty"`
+	IdempotencyKey string    `json:"idempotency_key,omitempty"`
+}
+
+type EditPatch struct {
+	UnifiedDiff        string         `json:"unified_diff,omitempty"`
+	FrontmatterChanges map[string]any `json:"frontmatter_changes,omitempty"`
+	Body               string         `json:"body,omitempty"`
+}
+
+type ClaimSourceArg struct {
+	RawID     string `json:"raw_id"`
+	Anchor    string `json:"anchor"`
+	Quote     string `json:"quote"`
+	QuoteHash string `json:"quote_hash"`
+	Span      []int  `json:"span,omitempty"`
+}
+
+type ProposeClaimArgs struct {
+	SessionToken   string           `json:"session_token" jsonschema:"session token from agent_handshake"`
+	ClaimID        string           `json:"claim_id"`
+	Title          string           `json:"title"`
+	Body           string           `json:"body"`
+	Sources        []ClaimSourceArg `json:"sources"`
+	Confidence     float64          `json:"confidence"`
+	Status         string           `json:"status,omitempty"`
+	Speculation    bool             `json:"speculation,omitempty"`
+	Related        []string         `json:"related,omitempty"`
+	IdempotencyKey string           `json:"idempotency_key,omitempty"`
+}
+
+type RequestReviewArgs struct {
+	SessionToken string   `json:"session_token" jsonschema:"session token from agent_handshake"`
+	ReviewIDs    []string `json:"review_ids"`
+	Title        string   `json:"title"`
+	Kind         string   `json:"kind" jsonschema:"ingest|lint_fix|query_sediment|dream_cycle|custom"`
+	PriorityHint string   `json:"priority_hint,omitempty" jsonschema:"critical|normal|low"`
+}
+
+type RequestReviewResult struct {
+	BundleID      string   `json:"bundle_id"`
+	ReviewIDs     []string `json:"review_ids"`
+	PriorityScore int      `json:"priority_score"`
+	QueuePosition int      `json:"queue_position"`
+}
+
+type LogAppendArgs struct {
+	SessionToken string   `json:"session_token" jsonschema:"session token from agent_handshake"`
+	Category     string   `json:"category" jsonschema:"agent_note|dream_cycle_report|lint_summary|milestone"`
+	Message      string   `json:"message"`
+	Links        []string `json:"links,omitempty"`
+}
+
+type LogAppendResult struct {
+	Seq    int    `json:"seq"`
+	SHA    string `json:"sha"`
+	TS     string `json:"ts"`
+	Status string `json:"status"`
+}
+
 // 本文件定义只读 tool 的 Request / Response 类型。
 //
 // 字段命名与 spec-v2/docs/mcp-tools.md §2-4 §7 的 JSON schema 一一对应。
@@ -94,6 +183,7 @@ type ReadPageResult struct {
 	Path          string   `json:"path"`
 	Title         string   `json:"title"`
 	Body          string   `json:"body"`
+	ContentHash   string   `json:"content_hash,omitempty"`
 	Confidence    *float64 `json:"confidence,omitempty"`
 	Status        string   `json:"status,omitempty"`
 	SchemaVersion string   `json:"schema_version"`

@@ -12,6 +12,9 @@ import (
 // ErrSessionExists indicates that an agent/session_id pair is already active.
 var ErrSessionExists = errors.New("SESSION_EXISTS")
 
+// ErrSessionRequired indicates that a write tool was called without an active session.
+var ErrSessionRequired = errors.New("SESSION_REQUIRED")
+
 const defaultIdleTimeout = 60 * time.Minute
 
 // Session describes one active MCP agent session.
@@ -23,6 +26,7 @@ type Session struct {
 	Capabilities  []string
 	SchemaVersion string
 	WorktreePath  string
+	Branch        string
 	CreatedAt     time.Time
 	LastSeenAt    time.Time
 	IdleTimeout   time.Duration
@@ -78,6 +82,29 @@ func (s *SessionStore) Lookup(token string) (*Session, bool) {
 	defer s.mu.RUnlock()
 	sess, ok := s.byToken[token]
 	return sess, ok
+}
+
+// Authenticate checks that a session token is present, active, and not expired.
+func (s *SessionStore) Authenticate(token string) (*Session, error) {
+	if token == "" {
+		return nil, ErrSessionRequired
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	sess, ok := s.byToken[token]
+	if !ok {
+		return nil, ErrSessionRequired
+	}
+	timeout := sess.IdleTimeout
+	if timeout == 0 {
+		timeout = defaultIdleTimeout
+	}
+	if time.Since(sess.LastSeenAt) > timeout {
+		delete(s.byToken, token)
+		delete(s.byKey, sessionKey(sess.Agent, sess.SessionID))
+		return nil, ErrSessionRequired
+	}
+	return sess, nil
 }
 
 // Touch updates LastSeenAt for a session token.

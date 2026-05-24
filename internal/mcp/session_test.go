@@ -42,6 +42,39 @@ func TestSessionStoreRegisterLookupTouchExpire(t *testing.T) {
 	}
 }
 
+func TestSessionStoreAuthenticate(t *testing.T) {
+	store := NewSessionStore()
+	if _, err := store.Authenticate(""); !errors.Is(err, ErrSessionRequired) {
+		t.Fatalf("Authenticate empty err = %v, want ErrSessionRequired", err)
+	}
+
+	expired := &Session{
+		Token:       "sk-expired",
+		Agent:       "codex-cli",
+		SessionID:   "expired",
+		LastSeenAt:  time.Now().UTC().Add(-2 * time.Hour),
+		IdleTimeout: time.Hour,
+	}
+	if err := store.Register(expired); err != nil {
+		t.Fatalf("Register expired: %v", err)
+	}
+	if _, err := store.Authenticate("sk-expired"); !errors.Is(err, ErrSessionRequired) {
+		t.Fatalf("Authenticate expired err = %v, want ErrSessionRequired", err)
+	}
+
+	active := &Session{Token: "sk-active", Agent: "codex-cli", SessionID: "active"}
+	if err := store.Register(active); err != nil {
+		t.Fatalf("Register active: %v", err)
+	}
+	got, err := store.Authenticate("sk-active")
+	if err != nil {
+		t.Fatalf("Authenticate active: %v", err)
+	}
+	if got.SessionID != "active" {
+		t.Fatalf("Authenticate returned %+v", got)
+	}
+}
+
 func TestSessionStoreRejectsDuplicateAgentSession(t *testing.T) {
 	store := NewSessionStore()
 	first := &Session{Token: "sk-1", Agent: "claude-code", SessionID: "sess-A"}

@@ -112,6 +112,36 @@ func registerTools(server *sdk.Server, b *vaultBackend) {
 		Description: "Read git/change-log history for a wiki page.",
 		Annotations: readOnly,
 	}, wrapHandler(b.handleGetHistory))
+
+	sdk.AddTool(server, &sdk.Tool{
+		Name:        "propose_page",
+		Description: "Propose a new wiki page by writing a patch into the review queue.",
+		Annotations: writeMeta,
+	}, wrapHandler(b.handleProposePage))
+
+	sdk.AddTool(server, &sdk.Tool{
+		Name:        "propose_edit",
+		Description: "Propose an edit to an existing wiki page using base_hash concurrency control.",
+		Annotations: writeMeta,
+	}, wrapHandler(b.handleProposeEdit))
+
+	sdk.AddTool(server, &sdk.Tool{
+		Name:        "propose_claim",
+		Description: "Propose a verified claim with quote_hash and provenance checks.",
+		Annotations: writeMeta,
+	}, wrapHandler(b.handleProposeClaim))
+
+	sdk.AddTool(server, &sdk.Tool{
+		Name:        "request_review",
+		Description: "Bundle pending review proposals for user review.",
+		Annotations: writeMeta,
+	}, wrapHandler(b.handleRequestReview))
+
+	sdk.AddTool(server, &sdk.Tool{
+		Name:        "log_append",
+		Description: "Append an audit note to wiki/log.md and commit it directly.",
+		Annotations: writeMeta,
+	}, wrapHandler(b.handleLogAppend))
 }
 
 // wrapHandler 把 "args → result, error" 风格的 handler 适配成 go-sdk 期望的

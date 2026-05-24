@@ -12,6 +12,7 @@ import (
 
 	"github.com/fengxd1222/llm-wiki/internal/commit"
 	"github.com/fengxd1222/llm-wiki/internal/index"
+	"github.com/fengxd1222/llm-wiki/internal/proposal"
 	"github.com/fengxd1222/llm-wiki/internal/service"
 )
 
@@ -240,6 +241,369 @@ func TestHandleAgentHandshakeQueueFull(t *testing.T) {
 	}
 	if !got.Accepted || got.QueueState.Pending != 50 || got.QueueState.CanPropose {
 		t.Fatalf("QueueState = %+v, want accepted pending=50 can_propose=false", got.QueueState)
+	}
+}
+
+func TestD11ProposePageAndRequestReview(t *testing.T) {
+	ctx := context.Background()
+	b, cleanup := newBackend(t)
+	t.Cleanup(cleanup)
+	commitVaultAll(t, ctx, b.root, "init")
+	hs := handshakeForTest(t, ctx, b, "codex-cli", "sess-d11-page")
+
+	proposed, err := b.handleProposePage(ctx, ProposePageArgs{
+		SessionToken: hs.SessionToken,
+		Path:         "wiki/concepts/review-gate.md",
+		Type:         "concept",
+		Frontmatter: map[string]any{
+			"id":             "co-review-gate",
+			"type":           "concept",
+			"title":          "Review gate",
+			"schema_version": "1.0",
+		},
+		Body:           "# Review gate\n\nAll writes wait in review.\n",
+		IdempotencyKey: "page-key",
+	})
+	if err != nil {
+		t.Fatalf("handleProposePage: %v", err)
+	}
+	if proposed.ReviewID != "r-0001" || proposed.Status != "pending" {
+		t.Fatalf("propose_page result = %+v", proposed)
+	}
+	if _, err := os.Stat(filepath.Join(b.root, "wiki", "_review", "r-0001.patch")); err != nil {
+		t.Fatalf("review patch missing: %v", err)
+	}
+	review, err := index.GetReviewByID(ctx, b.db, "r-0001")
+	if err != nil {
+		t.Fatalf("GetReviewByID: %v", err)
+	}
+	if review.Op != "propose_page" || review.PatchPath != "wiki/_review/r-0001.patch" {
+		t.Fatalf("review row = %+v", review)
+	}
+
+	again, err := b.handleProposePage(ctx, ProposePageArgs{
+		SessionToken: hs.SessionToken,
+		Path:         "wiki/concepts/review-gate.md",
+		Type:         "concept",
+		Frontmatter: map[string]any{
+			"id":             "co-review-gate",
+			"type":           "concept",
+			"title":          "Review gate",
+			"schema_version": "1.0",
+		},
+		Body:           "# Review gate\n\nAll writes wait in review.\n",
+		IdempotencyKey: "page-key",
+	})
+	if err != nil {
+		t.Fatalf("handleProposePage idempotent: %v", err)
+	}
+	if again.ReviewID != proposed.ReviewID {
+		t.Fatalf("idempotent review = %q, want %q", again.ReviewID, proposed.ReviewID)
+	}
+
+	_, err = b.handleRequestReview(ctx, RequestReviewArgs{
+		SessionToken: hs.SessionToken,
+		ReviewIDs:    []string{"r-0001"},
+		Title:        "Concept proposal",
+		Kind:         "unknown",
+		PriorityHint: "normal",
+	})
+	if !errors.Is(err, proposal.ErrSchemaViolation) {
+		t.Fatalf("handleRequestReview invalid kind err = %v, want ErrSchemaViolation", err)
+	}
+
+	other := handshakeForTest(t, ctx, b, "codex-cli", "sess-d11-page-other")
+	_, err = b.handleRequestReview(ctx, RequestReviewArgs{
+		SessionToken: other.SessionToken,
+		ReviewIDs:    []string{"r-0001"},
+		Title:        "Concept proposal",
+		Kind:         "custom",
+	})
+	if err == nil || !strings.Contains(err.Error(), "CROSS_SESSION_BUNDLE") {
+		t.Fatalf("handleRequestReview cross-session err = %v, want CROSS_SESSION_BUNDLE", err)
+	}
+
+	bundle, err := b.handleRequestReview(ctx, RequestReviewArgs{
+		SessionToken: hs.SessionToken,
+		ReviewIDs:    []string{"r-0001"},
+		Title:        "Concept proposal",
+		Kind:         "custom",
+		PriorityHint: "critical",
+	})
+	if err != nil {
+		t.Fatalf("handleRequestReview: %v", err)
+	}
+	if bundle.BundleID != "b-0001" || bundle.PriorityScore != 151 || bundle.QueuePosition != 1 {
+		t.Fatalf("bundle result = %+v", bundle)
+	}
+	review, err = index.GetReviewByID(ctx, b.db, "r-0001")
+	if err != nil {
+		t.Fatalf("GetReviewByID bundled: %v", err)
+	}
+	if review.BundleID != "b-0001" {
+		t.Fatalf("review BundleID = %q, want b-0001", review.BundleID)
+	}
+	_, err = b.handleRequestReview(ctx, RequestReviewArgs{
+		SessionToken: hs.SessionToken,
+		ReviewIDs:    []string{"r-0001"},
+		Title:        "Concept proposal",
+		Kind:         "custom",
+	})
+	if err == nil || !strings.Contains(err.Error(), "REVIEW_ALREADY_BUNDLED") {
+		t.Fatalf("handleRequestReview bundled err = %v, want REVIEW_ALREADY_BUNDLED", err)
+	}
+}
+
+func TestD11ProposePageRequiresSession(t *testing.T) {
+	ctx := context.Background()
+	b, cleanup := newBackend(t)
+	t.Cleanup(cleanup)
+	_, err := b.handleProposePage(ctx, ProposePageArgs{
+		Path: "wiki/concepts/no-session.md",
+		Type: "concept",
+		Frontmatter: map[string]any{
+			"type":  "concept",
+			"title": "No session",
+		},
+		Body: "# No session\n",
+	})
+	if !errors.Is(err, ErrSessionRequired) {
+		t.Fatalf("handleProposePage err = %v, want ErrSessionRequired", err)
+	}
+}
+
+func TestD11ProposePageRejectsPathAndSchema(t *testing.T) {
+	ctx := context.Background()
+	b, cleanup := newBackend(t)
+	t.Cleanup(cleanup)
+	commitVaultAll(t, ctx, b.root, "init")
+	hs := handshakeForTest(t, ctx, b, "codex-cli", "sess-d11-page-invalid")
+
+	_, err := b.handleProposePage(ctx, ProposePageArgs{
+		SessionToken: hs.SessionToken,
+		Path:         "raw/inbox/nope.md",
+		Type:         "concept",
+		Frontmatter:  map[string]any{"type": "concept", "title": "Nope"},
+		Body:         "# Nope\n",
+	})
+	if !errors.Is(err, proposal.ErrPathNotAllowed) {
+		t.Fatalf("handleProposePage path err = %v, want ErrPathNotAllowed", err)
+	}
+
+	_, err = b.handleProposePage(ctx, ProposePageArgs{
+		SessionToken: hs.SessionToken,
+		Path:         "wiki/concepts/no-title.md",
+		Type:         "concept",
+		Frontmatter:  map[string]any{"type": "concept"},
+		Body:         "# No title\n",
+	})
+	if !errors.Is(err, proposal.ErrSchemaViolation) {
+		t.Fatalf("handleProposePage schema err = %v, want ErrSchemaViolation", err)
+	}
+}
+
+func TestD11ProposeEditFrontmatterBody(t *testing.T) {
+	ctx := context.Background()
+	b, cleanup := newBackend(t)
+	t.Cleanup(cleanup)
+	seedClaim(t, b.root, "co-edit", "wiki/concepts/edit-me.md", "Edit me", "", 0)
+	if _, err := service.ReindexWiki(ctx, b.db, b.root); err != nil {
+		t.Fatalf("reindex: %v", err)
+	}
+	commitVaultAll(t, ctx, b.root, "seed edit page")
+	base, err := b.handleReadPage(ctx, ReadPageArgs{PageID: "co-edit"})
+	if err != nil {
+		t.Fatalf("handleReadPage: %v", err)
+	}
+	hs := handshakeForTest(t, ctx, b, "codex-cli", "sess-d11-edit")
+
+	got, err := b.handleProposeEdit(ctx, ProposeEditArgs{
+		SessionToken: hs.SessionToken,
+		PageID:       "co-edit",
+		BaseHash:     base.ContentHash,
+		Patch: EditPatch{
+			FrontmatterChanges: map[string]any{"title": "Edited title"},
+			Body:               "# Edited title\n\nUpdated body.\n",
+		},
+		Summary:        "edit concept",
+		IdempotencyKey: "edit-key",
+	})
+	if err != nil {
+		t.Fatalf("handleProposeEdit: %v", err)
+	}
+	if got.ReviewID != "r-0001" {
+		t.Fatalf("propose_edit review = %+v", got)
+	}
+}
+
+func TestD11ProposeEditUnifiedDiff(t *testing.T) {
+	ctx := context.Background()
+	b, cleanup := newBackend(t)
+	t.Cleanup(cleanup)
+	seedClaim(t, b.root, "co-diff", "wiki/concepts/diff-me.md", "Diff me", "", 0)
+	if _, err := service.ReindexWiki(ctx, b.db, b.root); err != nil {
+		t.Fatalf("reindex: %v", err)
+	}
+	commitVaultAll(t, ctx, b.root, "seed diff page")
+	base, err := b.handleReadPage(ctx, ReadPageArgs{PageID: "co-diff"})
+	if err != nil {
+		t.Fatalf("handleReadPage: %v", err)
+	}
+	hs := handshakeForTest(t, ctx, b, "codex-cli", "sess-d11-edit-diff")
+
+	diff := strings.Join([]string{
+		"diff --git a/wiki/concepts/diff-me.md b/wiki/concepts/diff-me.md",
+		"--- a/wiki/concepts/diff-me.md",
+		"+++ b/wiki/concepts/diff-me.md",
+		"@@ -5,4 +5,4 @@ title: \"Diff me\"",
+		" schema_version: \"1.0\"",
+		" ---",
+		" ",
+		"-# Diff me",
+		"+# Diffed",
+		"",
+	}, "\n")
+	got, err := b.handleProposeEdit(ctx, ProposeEditArgs{
+		SessionToken: hs.SessionToken,
+		PageID:       "co-diff",
+		BaseHash:     base.ContentHash,
+		Patch:        EditPatch{UnifiedDiff: diff},
+		Summary:      "diff concept",
+	})
+	if err != nil {
+		t.Fatalf("handleProposeEdit unified diff: %v", err)
+	}
+	if got.ReviewID != "r-0001" || got.Validations.BaseHashCheck != "passed" {
+		t.Fatalf("propose_edit unified result = %+v", got)
+	}
+}
+
+func TestD11ProposeEditBaseHashMismatch(t *testing.T) {
+	ctx := context.Background()
+	b, cleanup := newBackend(t)
+	t.Cleanup(cleanup)
+	seedClaim(t, b.root, "co-edit", "wiki/concepts/edit-me.md", "Edit me", "", 0)
+	if _, err := service.ReindexWiki(ctx, b.db, b.root); err != nil {
+		t.Fatalf("reindex: %v", err)
+	}
+	commitVaultAll(t, ctx, b.root, "seed edit page")
+	hs := handshakeForTest(t, ctx, b, "codex-cli", "sess-d11-edit-mismatch")
+	_, err := b.handleProposeEdit(ctx, ProposeEditArgs{
+		SessionToken: hs.SessionToken,
+		PageID:       "co-edit",
+		BaseHash:     "bad",
+		Patch:        EditPatch{Body: "# Bad\n"},
+	})
+	if !errors.Is(err, proposal.ErrBaseHashMismatch) {
+		t.Fatalf("handleProposeEdit err = %v, want ErrBaseHashMismatch", err)
+	}
+}
+
+func TestD11ProposeClaimHappyAndQuoteMismatch(t *testing.T) {
+	ctx := context.Background()
+	b, cleanup := newBackend(t)
+	t.Cleanup(cleanup)
+	rawAbs := filepath.Join(b.root, "raw", "inbox", "claim.md")
+	mustWrite(t, rawAbs, []byte("# Claim Source\n\nThe review queue is a gate.\n"))
+	quote, _, err := index.ResolveAnchor([]byte("# Claim Source\n\nThe review queue is a gate.\n"), "#para-1")
+	if err != nil {
+		t.Fatalf("ResolveAnchor: %v", err)
+	}
+	commitVaultAll(t, ctx, b.root, "seed raw")
+	hs := handshakeForTest(t, ctx, b, "codex-cli", "sess-d11-claim")
+
+	args := ProposeClaimArgs{
+		SessionToken: hs.SessionToken,
+		ClaimID:      "cl-2026-05-24-001",
+		Title:        "Review queue is a gate",
+		Body:         "# Review queue is a gate\n",
+		Sources: []ClaimSourceArg{{
+			RawID:     "raw/inbox/claim.md",
+			Anchor:    "#para-1",
+			Quote:     quote,
+			QuoteHash: index.QuoteHash(quote),
+		}},
+		Confidence:     0.9,
+		Status:         "supported",
+		IdempotencyKey: "claim-key",
+	}
+	got, err := b.handleProposeClaim(ctx, args)
+	if err != nil {
+		t.Fatalf("handleProposeClaim: %v", err)
+	}
+	if got.ReviewID != "r-0001" || got.Validations.QuoteHashCheck != "passed" {
+		t.Fatalf("propose_claim result = %+v", got)
+	}
+
+	args.ClaimID = "cl-2026-05-24-002"
+	args.IdempotencyKey = "claim-bad"
+	args.Sources[0].QuoteHash = "deadbeef"
+	_, err = b.handleProposeClaim(ctx, args)
+	if !errors.Is(err, proposal.ErrQuoteHashMismatch) {
+		t.Fatalf("handleProposeClaim mismatch err = %v, want ErrQuoteHashMismatch", err)
+	}
+
+	args.ClaimID = "cl-2026-05-24-003"
+	args.IdempotencyKey = "claim-provenance"
+	args.Sources[0].RawID = "wiki/claims/source.md"
+	args.Sources[0].QuoteHash = index.QuoteHash(quote)
+	_, err = b.handleProposeClaim(ctx, args)
+	if !errors.Is(err, proposal.ErrProvenanceDepthExceeded) {
+		t.Fatalf("handleProposeClaim provenance err = %v, want ErrProvenanceDepthExceeded", err)
+	}
+
+	args.ClaimID = "cl-2026-05-24-004"
+	args.IdempotencyKey = "claim-status"
+	args.Status = "invalid"
+	args.Sources[0].RawID = "raw/inbox/claim.md"
+	_, err = b.handleProposeClaim(ctx, args)
+	if !errors.Is(err, proposal.ErrSchemaViolation) {
+		t.Fatalf("handleProposeClaim status err = %v, want ErrSchemaViolation", err)
+	}
+}
+
+func TestD11LogAppend(t *testing.T) {
+	ctx := context.Background()
+	b, cleanup := newBackend(t)
+	t.Cleanup(cleanup)
+	commitVaultAll(t, ctx, b.root, "init")
+	hs := handshakeForTest(t, ctx, b, "codex-cli", "sess-d11-log")
+
+	_, err := b.handleLogAppend(ctx, LogAppendArgs{
+		SessionToken: hs.SessionToken,
+		Category:     "bad",
+		Message:      "bad category",
+	})
+	if !errors.Is(err, proposal.ErrSchemaViolation) {
+		t.Fatalf("handleLogAppend category err = %v, want ErrSchemaViolation", err)
+	}
+	_, err = b.handleLogAppend(ctx, LogAppendArgs{
+		SessionToken: hs.SessionToken,
+		Category:     "agent_note",
+		Message:      strings.Repeat("x", 501),
+	})
+	if !errors.Is(err, proposal.ErrSchemaViolation) {
+		t.Fatalf("handleLogAppend length err = %v, want ErrSchemaViolation", err)
+	}
+
+	got, err := b.handleLogAppend(ctx, LogAppendArgs{
+		SessionToken: hs.SessionToken,
+		Category:     "agent_note",
+		Message:      "D11 log append smoke",
+		Links:        []string{"wiki/concepts/review-gate.md"},
+	})
+	if err != nil {
+		t.Fatalf("handleLogAppend: %v", err)
+	}
+	if got.Seq != 1 || got.SHA == "" || got.Status != "appended" {
+		t.Fatalf("log append result = %+v", got)
+	}
+	entry, err := commit.ReadEntryBySeq(b.root, 1)
+	if err != nil {
+		t.Fatalf("ReadEntryBySeq: %v", err)
+	}
+	if entry.Actor != "codex-cli" || entry.Op != "append_log" {
+		t.Fatalf("change-log entry = %+v", entry)
 	}
 }
 
@@ -958,6 +1322,20 @@ func TestHandleGetHistoryGitDirect(t *testing.T) {
 }
 
 // --- helpers ---
+
+func handshakeForTest(t *testing.T, ctx context.Context, b *vaultBackend, agent, sessionID string) AgentHandshakeResult {
+	t.Helper()
+	got, err := b.handleAgentHandshake(ctx, AgentHandshakeArgs{
+		Agent:                 agent,
+		Version:               "0.1.0",
+		SessionID:             sessionID,
+		DeclaresSchemaVersion: "1.0",
+	})
+	if err != nil {
+		t.Fatalf("handleAgentHandshake: %v", err)
+	}
+	return got
+}
 
 // newBackend 建一个 vault + opens index db，返回 backend + cleanup hook。
 func newBackend(t *testing.T) (*vaultBackend, func()) {
