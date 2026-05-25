@@ -26,8 +26,14 @@ type HealthScore struct {
 func ComputeHealth(ctx context.Context, db *index.DB) (*HealthScore, error) {
 	h := &HealthScore{
 		Score:        100,
-		DriftClaims:  0, // staged: W3 claim_sources table
+		DriftClaims:  0, // will be filled from claim_sources table
 		LintWarnings: 0, // staged: W3 lint rules
+	}
+
+	// Count drift claims from claim_sources table.
+	driftCount, driftErr := index.CountDriftClaims(ctx, db)
+	if driftErr == nil {
+		h.DriftClaims = driftCount
 	}
 
 	// Count orphan pages (claim, entity, concept with no inbound links)
