@@ -1,0 +1,4 @@
+{"file": "spec-v2/docs/roadmap-30d.md", "reason": "D29 范围"}
+{"file": "spec-v2/docs/architecture.md", "reason": "§8 性能目标"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "SQLite 索引命中验证"}
