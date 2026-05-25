@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量基准"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "校验 13 步任一失败必回滚 + sentinel error + 错误码"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "校验 SQLite tx 用法 + reviews/bundles 状态机一致性"}
+{"file": "spec-v2/docs/architecture.md", "reason": "校验 §3.3 13 步严格实现 + git reset --hard 回滚正确"}

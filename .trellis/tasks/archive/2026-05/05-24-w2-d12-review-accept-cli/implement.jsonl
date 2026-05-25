@@ -1,0 +1,7 @@
+{"file": "spec-v2/docs/roadmap-30d.md", "reason": "D12 范围 + W2 出口预备"}
+{"file": "spec-v2/docs/architecture.md", "reason": "§3.3 Review 流程 13 步权威定义 (D12 严格按此实施)"}
+{"file": "spec-v2/docs/agent-protocol.md", "reason": "§4.3 worktree → main 合并语义 + §7 change-log 1:1 commit"}
+{"file": "spec-v2/docs/mcp-tools.md", "reason": "§11-16 propose/request_review 上游产物语义 (D12 消费)"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量基准 + D6/D11 既有 commit/log scenario"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "13 步原子性 + 回滚 + 5 个新 sentinel"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "SQLite tx + reviews/bundles 状态机更新"}
