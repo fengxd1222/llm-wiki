@@ -227,3 +227,30 @@ func gitResetHard(ctx context.Context, root string) error {
 	cmd.Dir = root
 	return cmd.Run()
 }
+
+// MarkSuperseded marks a pending review as superseded by a newer review.
+// Used when the same agent proposes a new edit to the same page.
+func MarkSuperseded(ctx context.Context, db *index.DB, reviewID, supersededBy string) error {
+	review, err := index.GetReviewByID(ctx, db, reviewID)
+	if err != nil {
+		return err
+	}
+	if review.Status != "pending" {
+		return fmt.Errorf("%w: current status=%s", ErrReviewNotPending, review.Status)
+	}
+	return index.UpdateReviewStatus(ctx, db, reviewID, "superseded", supersededBy)
+}
+
+// DetectConflict checks if a review's target page has been modified since the
+// review was created (base_hash mismatch). If so, marks it as 'conflict'.
+func DetectConflict(ctx context.Context, db *index.DB, reviewID string) error {
+	review, err := index.GetReviewByID(ctx, db, reviewID)
+	if err != nil {
+		return err
+	}
+	if review.Status != "pending" {
+		return nil // only pending reviews can conflict
+	}
+	// D15 MVP: mark conflict status. Full base_hash re-check is W3+.
+	return index.UpdateReviewStatus(ctx, db, reviewID, "conflict", "system")
+}

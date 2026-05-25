@@ -142,6 +142,18 @@ func registerTools(server *sdk.Server, b *vaultBackend) {
 		Description: "Append an audit note to wiki/log.md and commit it directly.",
 		Annotations: writeMeta,
 	}, wrapHandler(b.handleLogAppend))
+
+	sdk.AddTool(server, &sdk.Tool{
+		Name:        "acquire_lock",
+		Description: "Acquire an advisory lock on a page to prevent concurrent edits.",
+		Annotations: writeMeta,
+	}, wrapHandler(b.handleAcquireLock))
+
+	sdk.AddTool(server, &sdk.Tool{
+		Name:        "release_lock",
+		Description: "Release an advisory lock on a page.",
+		Annotations: writeMeta,
+	}, wrapHandler(b.handleReleaseLock))
 }
 
 // wrapHandler 把 "args → result, error" 风格的 handler 适配成 go-sdk 期望的

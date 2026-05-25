@@ -22,6 +22,7 @@ import (
 
 	"github.com/fengxd1222/llm-wiki/internal/commit"
 	"github.com/fengxd1222/llm-wiki/internal/index"
+	"github.com/fengxd1222/llm-wiki/internal/lock"
 	"github.com/fengxd1222/llm-wiki/internal/proposal"
 	"github.com/fengxd1222/llm-wiki/internal/service"
 	"github.com/fengxd1222/llm-wiki/internal/vault"
@@ -89,6 +90,7 @@ type vaultBackend struct {
 	root     string
 	db       *index.DB
 	sessions *SessionStore
+	locks    *lock.Manager
 }
 
 func (b *vaultBackend) sessionStore() *SessionStore {
@@ -96,6 +98,13 @@ func (b *vaultBackend) sessionStore() *SessionStore {
 		b.sessions = NewSessionStore()
 	}
 	return b.sessions
+}
+
+func (b *vaultBackend) lockManager() *lock.Manager {
+	if b.locks == nil {
+		b.locks = lock.NewManager()
+	}
+	return b.locks
 }
 
 // handleAgentHandshake implements mcp-tools.md §1.
@@ -489,6 +498,50 @@ func (b *vaultBackend) handleLogAppend(ctx context.Context, args LogAppendArgs) 
 		SHA:    entry.GitSHA,
 		TS:     entry.Timestamp,
 		Status: "appended",
+	}, nil
+}
+
+// handleAcquireLock implements acquire_lock MCP tool.
+func (b *vaultBackend) handleAcquireLock(ctx context.Context, args AcquireLockArgs) (AcquireLockResult, error) {
+	sess, err := b.sessionStore().Authenticate(args.SessionToken)
+	if err != nil {
+		return AcquireLockResult{}, ErrSessionRequired
+	}
+
+	ttl := time.Duration(args.TTLSeconds) * time.Second
+	if ttl <= 0 {
+		ttl = lock.DefaultTTL
+	}
+
+	if err := b.lockManager().Acquire(args.PageID, sess.Token, sess.Agent, ttl); err != nil {
+		return AcquireLockResult{
+			Acquired: false,
+			Message:  err.Error(),
+		}, nil
+	}
+	return AcquireLockResult{
+		Acquired: true,
+		PageID:   args.PageID,
+		TTL:      int(ttl.Seconds()),
+	}, nil
+}
+
+// handleReleaseLock implements release_lock MCP tool.
+func (b *vaultBackend) handleReleaseLock(ctx context.Context, args ReleaseLockArgs) (ReleaseLockResult, error) {
+	sess, err := b.sessionStore().Authenticate(args.SessionToken)
+	if err != nil {
+		return ReleaseLockResult{}, ErrSessionRequired
+	}
+
+	if err := b.lockManager().Release(args.PageID, sess.Token); err != nil {
+		return ReleaseLockResult{
+			Released: false,
+			Message:  err.Error(),
+		}, nil
+	}
+	return ReleaseLockResult{
+		Released: true,
+		PageID:   args.PageID,
 	}, nil
 }
 

@@ -370,3 +370,31 @@ type HistoryCommit struct {
 type GetHistoryResult struct {
 	Commits []HistoryCommit `json:"commits"`
 }
+
+// AcquireLockArgs is the input for acquire_lock.
+type AcquireLockArgs struct {
+	SessionToken string `json:"session_token"`
+	PageID       string `json:"page_id"`
+	TTLSeconds   int    `json:"ttl_seconds,omitempty"`
+}
+
+// AcquireLockResult is the output for acquire_lock.
+type AcquireLockResult struct {
+	Acquired bool   `json:"acquired"`
+	PageID   string `json:"page_id,omitempty"`
+	TTL      int    `json:"ttl_seconds,omitempty"`
+	Message  string `json:"message,omitempty"`
+}
+
+// ReleaseLockArgs is the input for release_lock.
+type ReleaseLockArgs struct {
+	SessionToken string `json:"session_token"`
+	PageID       string `json:"page_id"`
+}
+
+// ReleaseLockResult is the output for release_lock.
+type ReleaseLockResult struct {
+	Released bool   `json:"released"`
+	PageID   string `json:"page_id,omitempty"`
+	Message  string `json:"message,omitempty"`
+}

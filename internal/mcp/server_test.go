@@ -52,6 +52,8 @@ func TestNewServerListsTools(t *testing.T) {
 		"propose_claim":   false,
 		"request_review":  false,
 		"log_append":      false,
+		"acquire_lock":    false,
+		"release_lock":    false,
 	}
 	writeTools := map[string]bool{
 		"agent_handshake": true,
@@ -60,6 +62,8 @@ func TestNewServerListsTools(t *testing.T) {
 		"propose_claim":   true,
 		"request_review":  true,
 		"log_append":      true,
+		"acquire_lock":    true,
+		"release_lock":    true,
 	}
 	for _, tool := range tools {
 		if _, ok := wantNames[tool.Name]; ok {
