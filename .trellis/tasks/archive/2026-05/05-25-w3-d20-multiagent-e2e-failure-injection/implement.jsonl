@@ -1,0 +1,6 @@
+{"file": "spec-v2/docs/roadmap-30d.md", "reason": "D20 范围"}
+{"file": "spec-v2/docs/failure-playbook.md", "reason": "§5 doctor 命令 + 失败恢复模型"}
+{"file": "spec-v2/docs/conflict-scenarios.md", "reason": "4 个剧本端到端验收"}
+{"file": "spec-v2/docs/architecture.md", "reason": "§2.3 single-writer + daemon 主循环"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "失败注入恢复 + sentinel"}

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "校验失败注入下错误传播 + recovery"}
+{"file": "spec-v2/docs/failure-playbook.md", "reason": "校验 doctor 9 项检查覆盖"}
+{"file": "spec-v2/docs/conflict-scenarios.md", "reason": "校验 4 剧本 E2E 全通过"}
