@@ -403,3 +403,52 @@ Implemented agent_handshake, git worktree per agent, reviews/bundles persistence
 ### Next Steps
 
 - None - task complete
+
+
+## Session 13: W2-W4 D11-D22+D27 全链路实现
+
+**Date**: 2026-05-25
+**Task**: W2-W4 D11-D22+D27 全链路实现
+**Branch**: `main`
+
+### Summary
+
+修 D11 git init 跨平台 bug；实现 D12 review CLI、D13 watcher、D14 page_links+health+demo；W3 D15 lock manager、D16 drift、D17 lint、D18 queue、D19 IPC bridge、D20 daemon；W4 D22 demo 命令、D27 文档。go test 全绿。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1d58497` | (see git log) |
+| `b2695a2` | (see git log) |
+| `2703077` | (see git log) |
+| `674b156` | (see git log) |
+| `44a524e` | (see git log) |
+| `c4ba297` | (see git log) |
+| `28b1b44` | (see git log) |
+| `db9da82` | (see git log) |
+| `0b35408` | (see git log) |
+| `0d4e6cf` | (see git log) |
+| `a90ab58` | (see git log) |
+| `192c8c1` | (see git log) |
+| `ab4cdfd` | (see git log) |
+| `86e493a` | (see git log) |
+| `6c65511` | (see git log) |
+| `9da172b` | (see git log) |
+| `112c80b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
