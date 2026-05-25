@@ -217,3 +217,36 @@ func ReadEntryBySeq(vaultRoot string, seq int) (*LogEntry, error) {
 	}
 	return nil, ErrSeqNotFound
 }
+
+// ReadAllEntries reads all entries from change-log.jsonl in order.
+// Returns empty slice if file doesn't exist.
+func ReadAllEntries(vaultRoot string) ([]LogEntry, error) {
+	path := filepath.Join(vaultRoot, filepath.FromSlash(changeLogRelPath))
+	f, err := os.Open(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("open change log: %w", err)
+	}
+	defer f.Close()
+
+	var entries []LogEntry
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var entry LogEntry
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			return nil, fmt.Errorf("parse change log line: %w", err)
+		}
+		entries = append(entries, entry)
+	}
+	if err := scanner.Err(); err != nil && !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("scan change log: %w", err)
+	}
+	return entries, nil
+}

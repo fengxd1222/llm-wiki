@@ -291,7 +291,7 @@ func TestW1DemoWalkthroughCISmokeTest(t *testing.T) {
 }
 
 func TestStubCommands(t *testing.T) {
-	for _, name := range []string{"review", "lint"} {
+	for _, name := range []string{"lint"} {
 		var out bytes.Buffer
 		cmd := newRootCommand(&out, &out)
 		cmd.SetArgs([]string{name})

@@ -46,7 +46,9 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 	cmd.AddCommand(newWorktreeCommand(stdout))
 	cmd.AddCommand(newDoctorCommand(stdout))
 	cmd.AddCommand(newReindexCommand(stdout))
-	for _, name := range []string{"review", "lint"} {
+	cmd.AddCommand(newReviewCommand(stdout, os.Stdin))
+	cmd.AddCommand(newLogCommand(stdout))
+	for _, name := range []string{"lint"} {
 		cmd.AddCommand(newStubCommand(stdout, name))
 	}
 	return cmd
@@ -764,6 +766,51 @@ func newReindexCommand(stdout io.Writer) *cobra.Command {
 			return nil
 		},
 	}
+}
+
+func newLogCommand(stdout io.Writer) *cobra.Command {
+	var limit int
+	cmd := &cobra.Command{
+		Use:   "log",
+		Short: "Show change-log history (newest first)",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			vaultRoot, err := resolveVaultFromCWD()
+			if err != nil {
+				return err
+			}
+			entries, err := commit.ReadAllEntries(vaultRoot)
+			if err != nil {
+				return fmt.Errorf("read change-log: %w", err)
+			}
+			if len(entries) == 0 {
+				fmt.Fprintf(stdout, "No change-log entries.\n")
+				return nil
+			}
+
+			// Reverse order (newest first).
+			for i, j := 0, len(entries)-1; i < j; i, j = i+1, j-1 {
+				entries[i], entries[j] = entries[j], entries[i]
+			}
+
+			if limit > 0 && limit < len(entries) {
+				entries = entries[:limit]
+			}
+
+			fmt.Fprintf(stdout, "%-5s %-12s %-10s %-20s %s\n", "Seq", "Op", "Actor", "Timestamp", "Summary")
+			for _, e := range entries {
+				summary := e.Summary
+				if len(summary) > 50 {
+					summary = summary[:47] + "..."
+				}
+				fmt.Fprintf(stdout, "%-5d %-12s %-10s %-20s %s\n",
+					e.Seq, e.Op, e.Actor, e.Timestamp, summary)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().IntVar(&limit, "limit", 0, "Limit number of entries (0=all)")
+	return cmd
 }
 
 func newStubCommand(stdout io.Writer, name string) *cobra.Command {
