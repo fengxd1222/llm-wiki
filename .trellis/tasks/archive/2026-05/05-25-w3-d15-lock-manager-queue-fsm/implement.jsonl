@@ -1,0 +1,6 @@
+{"file": "spec-v2/docs/roadmap-30d.md", "reason": "D15 范围"}
+{"file": "spec-v2/docs/agent-protocol.md", "reason": "§5 Lock 协议 (TTL/stale/grace/force)"}
+{"file": "spec-v2/docs/conflict-scenarios.md", "reason": "剧本 1: 两 agent 抢同页"}
+{"file": "spec-v2/docs/mcp-tools.md", "reason": "§17 §18 acquire_lock / release_lock schema"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量基准"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "lock 错误 + concurrent 错误"}

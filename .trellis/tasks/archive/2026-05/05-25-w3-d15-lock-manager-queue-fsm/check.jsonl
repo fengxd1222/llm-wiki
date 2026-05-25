@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "校验 lock 错误传播"}
+{"file": "spec-v2/docs/agent-protocol.md", "reason": "校验 §5 Lock 协议 TTL/grace 实施"}
+{"file": "spec-v2/docs/conflict-scenarios.md", "reason": "校验剧本 1 集成测试覆盖"}
