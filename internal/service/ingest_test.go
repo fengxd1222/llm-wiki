@@ -111,7 +111,7 @@ func TestIngestFileLargeFileStreams(t *testing.T) {
 	db := openTestDB(t, vaultRoot)
 
 	const size = 10 * 1024 * 1024 // 10 MiB
-	srcPath := filepath.Join(t.TempDir(), "large.bin")
+	srcPath := filepath.Join(t.TempDir(), "large.pdf")
 	if err := writeRandomFile(srcPath, size); err != nil {
 		t.Fatalf("seed large file: %v", err)
 	}
@@ -338,4 +338,55 @@ func copyRand(dst *os.File, n int64) (int64, error) {
 		}
 	}
 	return written, nil
+}
+
+func TestIngestFileUnsupportedFormat(t *testing.T) {
+	ctx := context.Background()
+	vaultRoot := newTestVault(t)
+	db := openTestDB(t, vaultRoot)
+
+	srcPath := filepath.Join(t.TempDir(), "data.bin")
+	if err := os.WriteFile(srcPath, []byte("binary data"), 0o644); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	_, err := IngestFile(ctx, db, vaultRoot, srcPath)
+	if !errors.Is(err, ErrUnsupportedRawFormat) {
+		t.Fatalf("err = %v, want ErrUnsupportedRawFormat", err)
+	}
+}
+
+func TestIngestImageFile(t *testing.T) {
+	ctx := context.Background()
+	vaultRoot := newTestVault(t)
+	db := openTestDB(t, vaultRoot)
+
+	// Create a minimal 1x1 PNG file.
+	srcPath := filepath.Join(t.TempDir(), "pixel.png")
+	// Minimal valid PNG: 1x1 white pixel.
+	pngData := []byte{
+		0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, // PNG signature
+		0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, // IHDR chunk
+		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // 1x1
+		0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xde, // 8-bit RGB
+		0x00, 0x00, 0x00, 0x0c, 0x49, 0x44, 0x41, 0x54, // IDAT chunk
+		0x08, 0xd7, 0x63, 0xf8, 0xcf, 0xc0, 0x00, 0x00, 0x00, 0x02, 0x00, 0x01,
+		0xe2, 0x21, 0xbc, 0x33,
+		0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, // IEND chunk
+		0xae, 0x42, 0x60, 0x82,
+	}
+	if err := os.WriteFile(srcPath, pngData, 0o644); err != nil {
+		t.Fatalf("write png: %v", err)
+	}
+
+	res, err := IngestFile(ctx, db, vaultRoot, srcPath)
+	if err != nil {
+		t.Fatalf("IngestFile png: %v", err)
+	}
+	if res.Duplicate {
+		t.Fatalf("unexpected duplicate")
+	}
+	// Source page should exist.
+	if res.SourcePage == nil || !res.SourcePage.Created {
+		t.Fatalf("source page not created for image")
+	}
 }

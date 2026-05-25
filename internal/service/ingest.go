@@ -62,6 +62,11 @@ func IngestFile(
 		return nil, err
 	}
 
+	// Format validation: reject unsupported file types.
+	if !IsSupportedFormat(srcAbs) {
+		return nil, fmt.Errorf("%w: %s", ErrUnsupportedRawFormat, filepath.Ext(srcAbs))
+	}
+
 	// 1) 流式 sha256（O(1) 内存，PDF / 音频大文件友好）。
 	sum, err := sha256File(srcAbs)
 	if err != nil {

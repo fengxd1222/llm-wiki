@@ -48,6 +48,7 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 	cmd.AddCommand(newReindexCommand(stdout))
 	cmd.AddCommand(newReviewCommand(stdout, os.Stdin))
 	cmd.AddCommand(newLogCommand(stdout))
+	cmd.AddCommand(newWatchCommand(stdout, stderr))
 	for _, name := range []string{"lint"} {
 		cmd.AddCommand(newStubCommand(stdout, name))
 	}
