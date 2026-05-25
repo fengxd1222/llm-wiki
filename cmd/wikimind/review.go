@@ -16,13 +16,14 @@ import (
 func newReviewCommand(stdout io.Writer, stdin io.Reader) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "review",
-		Short: "Manage review queue (list/show/diff/accept/reject)",
+		Short: "Manage review queue (list/show/diff/accept/reject/today)",
 	}
 	cmd.AddCommand(newReviewListCommand(stdout))
 	cmd.AddCommand(newReviewShowCommand(stdout))
 	cmd.AddCommand(newReviewDiffCommand(stdout))
 	cmd.AddCommand(newReviewAcceptCommand(stdout, stdin))
 	cmd.AddCommand(newReviewRejectCommand(stdout))
+	cmd.AddCommand(newReviewTodayCommand(stdout))
 	return cmd
 }
 
@@ -284,5 +285,51 @@ func newReviewRejectCommand(stdout io.Writer) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&reason, "reason", "", "Rejection reason (required, min 10 chars)")
 	_ = cmd.MarkFlagRequired("reason")
+	return cmd
+}
+
+func newReviewTodayCommand(stdout io.Writer) *cobra.Command {
+	var limit int
+	cmd := &cobra.Command{
+		Use:   "today",
+		Short: "Show high-priority pending reviews (sorted by priority)",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			vaultRoot, err := resolveVaultFromCWD()
+			if err != nil {
+				return err
+			}
+			db, err := index.Open(vaultRoot)
+			if err != nil {
+				return fmt.Errorf("open index: %w", err)
+			}
+			defer db.Close()
+
+			ctx := context.Background()
+			reviews, err := index.ListReviewsByStatus(ctx, db, "pending")
+			if err != nil {
+				return err
+			}
+
+			if len(reviews) == 0 {
+				fmt.Fprintf(stdout, "No pending reviews. Queue is clear.\n")
+				return nil
+			}
+
+			if limit > 0 && limit < len(reviews) {
+				reviews = reviews[:limit]
+			}
+
+			fmt.Fprintf(stdout, "Top %d pending reviews:\n", len(reviews))
+			fmt.Fprintf(stdout, "%-8s %-15s %-20s %-12s %s\n",
+				"ID", "Op", "Target", "Agent", "Created")
+			for _, r := range reviews {
+				fmt.Fprintf(stdout, "%-8s %-15s %-20s %-12s %s\n",
+					r.ID, r.Op, r.TargetPageID, r.Agent, r.CreatedAt)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().IntVar(&limit, "limit", 20, "Max reviews to show")
 	return cmd
 }
