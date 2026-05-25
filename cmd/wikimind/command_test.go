@@ -290,18 +290,15 @@ func TestW1DemoWalkthroughCISmokeTest(t *testing.T) {
 	}
 }
 
-func TestStubCommands(t *testing.T) {
-	for _, name := range []string{"lint"} {
-		var out bytes.Buffer
-		cmd := newRootCommand(&out, &out)
-		cmd.SetArgs([]string{name})
-		if err := cmd.Execute(); err != nil {
-			t.Fatalf("%s Execute() error = %v", name, err)
-		}
-		want := "wikimind " + name + ": D1 未实现\n"
-		if out.String() != want {
-			t.Fatalf("%s output = %q, want %q", name, out.String(), want)
-		}
+func TestLintCommandExists(t *testing.T) {
+	var out bytes.Buffer
+	cmd := newRootCommand(&out, &out)
+	cmd.SetArgs([]string{"lint", "--help"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("lint --help: %v", err)
+	}
+	if !strings.Contains(out.String(), "health checks") {
+		t.Fatalf("lint help unexpected:\n%s", out.String())
 	}
 }
 

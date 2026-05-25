@@ -18,6 +18,7 @@ import (
 
 	"github.com/fengxd1222/llm-wiki/internal/commit"
 	"github.com/fengxd1222/llm-wiki/internal/index"
+	"github.com/fengxd1222/llm-wiki/internal/lint"
 	mcppkg "github.com/fengxd1222/llm-wiki/internal/mcp"
 	"github.com/fengxd1222/llm-wiki/internal/service"
 	"github.com/fengxd1222/llm-wiki/internal/vault"
@@ -49,9 +50,7 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 	cmd.AddCommand(newReviewCommand(stdout, os.Stdin))
 	cmd.AddCommand(newLogCommand(stdout))
 	cmd.AddCommand(newWatchCommand(stdout, stderr))
-	for _, name := range []string{"lint"} {
-		cmd.AddCommand(newStubCommand(stdout, name))
-	}
+	cmd.AddCommand(newLintCommand(stdout))
 	return cmd
 }
 
@@ -814,15 +813,51 @@ func newLogCommand(stdout io.Writer) *cobra.Command {
 	return cmd
 }
 
-func newStubCommand(stdout io.Writer, name string) *cobra.Command {
-	return &cobra.Command{
-		Use:   name,
-		Short: "D1 stub",
+func newLintCommand(stdout io.Writer) *cobra.Command {
+	var jsonOutput bool
+	cmd := &cobra.Command{
+		Use:   "lint",
+		Short: "Run vault health checks (8 rules)",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintf(stdout, "wikimind %s: D1 未实现\n", name)
+			vaultRoot, db, err := openVaultAndIndex()
+			if err != nil {
+				return err
+			}
+			defer db.Close()
+
+			rules := lint.AllRules()
+			findings, summary := lint.RunRules(cmd.Context(), vaultRoot, db, rules)
+
+			if jsonOutput {
+				enc := json.NewEncoder(stdout)
+				enc.SetIndent("", "  ")
+				return enc.Encode(map[string]any{
+					"findings": findings,
+					"summary":  summary,
+				})
+			}
+
+			if len(findings) == 0 {
+				fmt.Fprintf(stdout, "✓ No issues found (%d rules checked)\n", len(rules))
+				return nil
+			}
+
+			fmt.Fprintf(stdout, "%-20s %-20s %-8s %s\n", "Rule", "Page", "Severity", "Detail")
+			for _, f := range findings {
+				fmt.Fprintf(stdout, "%-20s %-20s %-8s %s\n", f.Rule, f.PageID, f.Severity, f.Detail)
+			}
+			fmt.Fprintf(stdout, "\nSummary: %d errors, %d warnings, %d info (%d total)\n",
+				summary.Errors, summary.Warnings, summary.Infos, summary.Total)
+
+			if summary.Errors > 0 {
+				return fmt.Errorf("lint found %d error(s)", summary.Errors)
+			}
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output as JSON")
+	return cmd
 }
 
 func printStatus(w io.Writer, status *vault.Status) {
