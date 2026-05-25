@@ -1,0 +1,5 @@
+{"file": "spec-v2/docs/roadmap-30d.md", "reason": "D19 范围"}
+{"file": "spec-v2/docs/cross-platform.md", "reason": "§3.2 Windows watcher + §1 长路径 + CFA"}
+{"file": "spec-v2/docs/engineering-decisions.md", "reason": "§2.4 bridge ⇄ daemon IPC (uds + named pipe)"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "IPC 错误 + watcher reconcile 失败"}
