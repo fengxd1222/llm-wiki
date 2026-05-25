@@ -122,6 +122,17 @@ func IngestFile(
 		return nil, fmt.Errorf("auto-commit ingest %s: %w", row.RawID, err)
 	}
 
+	// D14: append to wiki/index.md (best-effort, failure does not block ingest).
+	if srcPage != nil && srcPage.Created {
+		pageID := strings.TrimSuffix(filepath.Base(srcPage.RelPath), ".md")
+		_ = AppendIndexEntry(ctx, vaultRoot, PageInfo{
+			ID:         pageID,
+			Type:       "source",
+			Title:      srcPage.Title,
+			Confidence: "—",
+		})
+	}
+
 	return &IngestResult{
 		Source:     row,
 		WrittenTo:  destAbs,

@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strconv"
@@ -43,6 +44,8 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 	cmd.AddCommand(newRevertCommand(stdout, os.Stdin))
 	cmd.AddCommand(newMcpCommand(stdout, stderr))
 	cmd.AddCommand(newWorktreeCommand(stdout))
+	cmd.AddCommand(newDoctorCommand(stdout))
+	cmd.AddCommand(newReindexCommand(stdout))
 	for _, name := range []string{"review", "lint"} {
 		cmd.AddCommand(newStubCommand(stdout, name))
 	}
@@ -652,6 +655,115 @@ func confirmYes(stdout io.Writer, stdin io.Reader, prompt string) bool {
 	}
 	answer := strings.ToLower(strings.TrimSpace(line))
 	return answer == "y" || answer == "yes"
+}
+
+func newDoctorCommand(stdout io.Writer) *cobra.Command {
+	return &cobra.Command{
+		Use:   "doctor",
+		Short: "Check system dependencies and vault health",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			allOK := true
+
+			// Check git
+			if _, err := exec.LookPath("git"); err != nil {
+				fmt.Fprintf(stdout, "✗ git: not found\n")
+				allOK = false
+			} else {
+				out, _ := exec.Command("git", "--version").Output()
+				fmt.Fprintf(stdout, "✓ git: %s\n", strings.TrimSpace(string(out)))
+			}
+
+			// Check python3
+			if _, err := exec.LookPath("python3"); err != nil {
+				fmt.Fprintf(stdout, "✗ python3: not found\n")
+				allOK = false
+			} else {
+				out, _ := exec.Command("python3", "--version").Output()
+				fmt.Fprintf(stdout, "✓ python3: %s\n", strings.TrimSpace(string(out)))
+
+				// Check pypdf
+				checkPypdf := exec.Command("python3", "-c", "import pypdf; print(pypdf.__version__)")
+				if pypdfOut, err := checkPypdf.Output(); err != nil {
+					fmt.Fprintf(stdout, "✗ pypdf: not installed (pip install pypdf)\n")
+					allOK = false
+				} else {
+					fmt.Fprintf(stdout, "✓ pypdf: %s\n", strings.TrimSpace(string(pypdfOut)))
+				}
+			}
+
+			// Check vault
+			vaultRoot, err := resolveVaultFromCWD()
+			if err != nil {
+				fmt.Fprintf(stdout, "✗ vault: not found (run 'wikimind init <path>')\n")
+				allOK = false
+			} else {
+				fmt.Fprintf(stdout, "✓ vault: %s\n", vaultRoot)
+
+				// Check index.db
+				db, err := index.Open(vaultRoot)
+				if err != nil {
+					fmt.Fprintf(stdout, "✗ index.db: %v\n", err)
+					allOK = false
+				} else {
+					fmt.Fprintf(stdout, "✓ index.db: ok\n")
+					db.Close()
+				}
+
+				// Check vault directories
+				for _, dir := range []string{"raw", "wiki", ".wikimind"} {
+					p := filepath.Join(vaultRoot, dir)
+					if info, err := os.Stat(p); err != nil || !info.IsDir() {
+						fmt.Fprintf(stdout, "✗ %s/: missing\n", dir)
+						allOK = false
+					} else {
+						fmt.Fprintf(stdout, "✓ %s/: ok\n", dir)
+					}
+				}
+			}
+
+			if !allOK {
+				return fmt.Errorf("doctor: some checks failed")
+			}
+			fmt.Fprintf(stdout, "\nAll checks passed.\n")
+			return nil
+		},
+	}
+}
+
+func newReindexCommand(stdout io.Writer) *cobra.Command {
+	return &cobra.Command{
+		Use:     "reindex",
+		Short:   "Rebuild wiki page index + page_links (alias for 'page reindex')",
+		Aliases: []string{},
+		Args:    cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			vaultRoot, db, err := openVaultAndIndex()
+			if err != nil {
+				return err
+			}
+			defer db.Close()
+			res, err := service.ReindexWiki(cmd.Context(), db, vaultRoot)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(stdout, "indexed %d pages (with page_links)\n", res.Count)
+			if len(res.Skipped) > 0 {
+				fmt.Fprintf(stdout, "skipped %d files (parse error):\n", len(res.Skipped))
+				for _, p := range res.Skipped {
+					fmt.Fprintf(stdout, "  - %s\n", p)
+				}
+			}
+
+			// Also rebuild wiki/index.md
+			if err := service.RebuildIndex(cmd.Context(), db, vaultRoot); err != nil {
+				fmt.Fprintf(stdout, "warning: rebuild wiki/index.md: %v\n", err)
+			} else {
+				fmt.Fprintf(stdout, "rebuilt wiki/index.md\n")
+			}
+			return nil
+		},
+	}
 }
 
 func newStubCommand(stdout io.Writer, name string) *cobra.Command {
