@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量"}
+{"file": "spec-v2/docs/dream-cycle.md", "reason": "校验 audit/report 阶段实施"}
+{"file": "spec-v2/docs/query-sedimentation.md", "reason": "校验沉淀算法 + topic 通过 review queue"}

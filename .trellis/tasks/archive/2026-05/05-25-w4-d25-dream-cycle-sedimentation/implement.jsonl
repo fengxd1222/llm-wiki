@@ -1,0 +1,4 @@
+{"file": "spec-v2/docs/roadmap-30d.md", "reason": "D25 范围"}
+{"file": "spec-v2/docs/dream-cycle.md", "reason": "audit + report 阶段语义"}
+{"file": "spec-v2/docs/query-sedimentation.md", "reason": "评分 + topic 沉淀算法"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量"}
