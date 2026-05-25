@@ -1,0 +1,5 @@
+{"file": "spec-v2/docs/roadmap-30d.md", "reason": "D17 范围 + 8 lint 规则"}
+{"file": "spec-v2/docs/mcp-tools.md", "reason": "§20 lint_run schema + ReadOnlyHint"}
+{"file": "spec-v2/docs/architecture.md", "reason": "§3 lint 在系统中的位置 (read-only, 不改 wiki)"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "page_links / pages 表查询 + meta last_lint_at"}
