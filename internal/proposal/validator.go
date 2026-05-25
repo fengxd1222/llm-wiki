@@ -92,7 +92,8 @@ func ValidateBaseHash(ctx context.Context, vaultRoot, path, declaredBaseHash str
 	if declaredBaseHash == "" {
 		return fmt.Errorf("%w: base_hash required", ErrBaseHashMismatch)
 	}
-	out, err := runGit(ctx, vaultRoot, "show", "main:"+filepath.ToSlash(path))
+	baseRef := defaultBaseRef(ctx, vaultRoot)
+	out, err := runGit(ctx, vaultRoot, "show", baseRef+":"+filepath.ToSlash(path))
 	if err != nil {
 		return fmt.Errorf("%w: read base page %s: %v", ErrBaseHashMismatch, path, err)
 	}

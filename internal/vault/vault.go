@@ -214,7 +214,7 @@ func initGitIfNeeded(root string) error {
 	if ok, _ := isInsideGitWorkTree(root); ok {
 		return nil
 	}
-	if _, err := runGit(root, "init"); err != nil {
+	if _, err := runGit(root, "init", "--initial-branch=main"); err != nil {
 		return fmt.Errorf("git init: %w", err)
 	}
 	return nil
