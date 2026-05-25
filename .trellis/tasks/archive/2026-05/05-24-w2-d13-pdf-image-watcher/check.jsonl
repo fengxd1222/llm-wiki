@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量基准"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "校验 subprocess 失败 / worker error / watcher buffer overflow 兜底"}
+{"file": "spec-v2/docs/cross-platform.md", "reason": "校验 watcher debounce 200ms + 多 OS 兼容性"}
+{"file": "spec-v2/docs/architecture.md", "reason": "校验 §3.4 watcher 流程 + raw/wiki 分层不被 PDF body 复制污染"}

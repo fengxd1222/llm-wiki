@@ -1,0 +1,7 @@
+{"file": "spec-v2/docs/roadmap-30d.md", "reason": "D13 范围 + W2 出口"}
+{"file": "spec-v2/docs/architecture.md", "reason": "§3.4 Watcher 与 Sync 流程 + raw/wiki 分层一致性"}
+{"file": "spec-v2/docs/cross-platform.md", "reason": "§2.2 FSEvents 已知问题 + debounce 200ms + fsnotify 多 OS"}
+{"file": "spec-v2/docs/engineering-decisions.md", "reason": "§1 Python worker stdio JSON 协议 (D13 接 PDF)"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量基准"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "subprocess 失败 + worker error 事件传播 + watcher 兜底"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "PDF/图片 sources/pages 表写入规范"}
