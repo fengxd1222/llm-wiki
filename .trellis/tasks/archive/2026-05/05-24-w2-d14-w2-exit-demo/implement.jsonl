@@ -1,0 +1,7 @@
+{"file": "spec-v2/docs/roadmap-30d.md", "reason": "W2 出口标准 + W3 teaser"}
+{"file": "spec-v2/docs/architecture.md", "reason": "§3.3 review accept + §4.2 wiki/index.md 维护 + page_links graph"}
+{"file": "spec-v2/docs/mcp-tools.md", "reason": "§2 wiki_info health 字段 + §9 graph_neighbors inbound 真兑现"}
+{"file": "spec-v2/docs/agent-protocol.md", "reason": "全 demo flow 跨多 tool 协议一致性"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量基准"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "doctor 命令友好错误 + index 重建失败回滚"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "migration 0004 page_links + INDEX 设计"}

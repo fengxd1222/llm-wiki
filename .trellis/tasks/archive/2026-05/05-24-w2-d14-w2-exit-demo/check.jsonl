@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量基准"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "校验 doctor / wiki_index / health 错误处理"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "校验 migration 0004 + page_links INDEX 命中"}
+{"file": "spec-v2/docs/mcp-tools.md", "reason": "校验 wiki_info health 真值 + graph_neighbors inbound 兑现"}
+{"file": "spec-v2/docs/architecture.md", "reason": "校验 §3.3 review accept + §4.1 三层目录 + wiki/index.md 是 git tracked"}
