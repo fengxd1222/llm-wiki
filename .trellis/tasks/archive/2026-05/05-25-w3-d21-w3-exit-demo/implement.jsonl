@@ -1,0 +1,4 @@
+{"file": "spec-v2/docs/roadmap-30d.md", "reason": "W3 出口标准"}
+{"file": "spec-v2/docs/conflict-scenarios.md", "reason": "全部剧本 E2E demo"}
+{"file": "spec-v2/docs/architecture.md", "reason": "全 D8-D20 系统整合一致性"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量"}
