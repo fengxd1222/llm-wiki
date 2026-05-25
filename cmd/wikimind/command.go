@@ -51,6 +51,7 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 	cmd.AddCommand(newLogCommand(stdout))
 	cmd.AddCommand(newWatchCommand(stdout, stderr))
 	cmd.AddCommand(newLintCommand(stdout))
+	cmd.AddCommand(newDemoCommand(stdout))
 	return cmd
 }
 
