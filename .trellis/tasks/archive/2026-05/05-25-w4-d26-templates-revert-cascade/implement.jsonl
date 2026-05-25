@@ -1,0 +1,3 @@
+{"file": "spec-v2/docs/roadmap-30d.md", "reason": "D26 范围"}
+{"file": "spec-v2/docs/failure-playbook.md", "reason": "§3 revert-cascade 反向影响分析"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量"}
