@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "校验 queue COUNT + bundle merge SQL"}
+{"file": "spec-v2/docs/review-queue-policy.md", "reason": "校验 §3 §4 严格实现"}

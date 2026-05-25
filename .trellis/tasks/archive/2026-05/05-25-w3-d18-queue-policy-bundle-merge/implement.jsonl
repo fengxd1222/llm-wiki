@@ -1,0 +1,5 @@
+{"file": "spec-v2/docs/roadmap-30d.md", "reason": "D18 范围"}
+{"file": "spec-v2/docs/review-queue-policy.md", "reason": "§3 上限策略 + §4 bundle 归并语义"}
+{"file": "spec-v2/docs/mcp-tools.md", "reason": "§16 request_review priority + queue_state 字段"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "reviews/bundles 表查询 + COUNT 优化"}
