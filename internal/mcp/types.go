@@ -145,12 +145,12 @@ type CountsBlock struct {
 
 // HealthBlock 镜像 mcp-tools.md §2 health.* 字段。
 //
-// D8 阶段 score / drift_claims / lint_warnings 全为占位（W3 lint / claim drift
-// 上线后再填真值）。
+// D14: score 真实计算基于 orphan_pages；drift_claims / lint_warnings 仍占位（W3）。
 type HealthBlock struct {
 	Score        int `json:"score"`
 	DriftClaims  int `json:"drift_claims"`
 	LintWarnings int `json:"lint_warnings"`
+	OrphanPages  int `json:"orphan_pages"`
 }
 
 // WikiInfoResult 镜像 mcp-tools.md §2 wiki_info response。

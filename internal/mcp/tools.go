@@ -79,7 +79,6 @@ const formatNormalizedNote = "normalized read_raw is not exposed; use read_raw_a
 
 const (
 	claimSourcesStagedNote = "claim source validation requires claim_sources table (W2 D11+ propose_claim)"
-	inboundLinksStagedNote = "inbound links require page_links table (W2 D11+)"
 	minConfidenceNote      = "min_confidence filter requires claims confidence field (W2 D11+)"
 	vectorSearchWarning    = "fts+vector requested; embeddings are not available yet, downgraded to fts"
 )
@@ -506,6 +505,7 @@ func (b *vaultBackend) handleWikiInfo(ctx context.Context, _ WikiInfoArgs) (Wiki
 			Score:        100,
 			DriftClaims:  0,
 			LintWarnings: 0,
+			OrphanPages:  0,
 		},
 	}
 	if cfg, err := vault.LoadConfig(b.root); err == nil && cfg.SchemaVersion != "" {
@@ -517,6 +517,17 @@ func (b *vaultBackend) handleWikiInfo(ctx context.Context, _ WikiInfoArgs) (Wiki
 		return WikiInfoResult{}, err
 	}
 	result.Counts = counts
+
+	// D14: compute real health score based on page_links orphan detection.
+	if h, err := service.ComputeHealth(ctx, b.db); err == nil {
+		result.Health = HealthBlock{
+			Score:        h.Score,
+			DriftClaims:  h.DriftClaims,
+			LintWarnings: h.LintWarnings,
+			OrphanPages:  h.OrphanPages,
+		}
+	}
+
 	return result, nil
 }
 
@@ -1055,7 +1066,17 @@ func (b *vaultBackend) handleGraphNeighbors(ctx context.Context, args GraphNeigh
 	var notes []string
 	var neighbors []GraphNeighbor
 	if direction == "in" || direction == "both" {
-		notes = append(notes, inboundLinksStagedNote)
+		inbound, err := index.InboundLinks(ctx, b.db, pageID)
+		if err != nil {
+			return GraphNeighborsResult{}, fmt.Errorf("graph_neighbors inbound: %w", err)
+		}
+		for _, link := range inbound {
+			neighbor := GraphNeighbor{PageID: link.SourceID, LinkType: link.LinkType}
+			if row, err := index.GetPageByID(ctx, b.db, link.SourceID); err == nil && row != nil {
+				neighbor.Title = row.Title
+			}
+			neighbors = append(neighbors, neighbor)
+		}
 	}
 	if direction == "out" || direction == "both" {
 		rel, err := b.resolvePagePath(ctx, pageID)

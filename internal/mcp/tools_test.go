@@ -1211,16 +1211,24 @@ func TestHandleGraphNeighborsOutAndInStaged(t *testing.T) {
 	if got.Neighbors[0].LinkType != "ref" || got.Neighbors[0].Title == "" {
 		t.Fatalf("neighbor = %+v, want ref with title", got.Neighbors[0])
 	}
-	if len(got.Notes) != 1 || !strings.Contains(got.Notes[0], "page_links") {
-		t.Fatalf("Notes = %v, want inbound staged note for default both", got.Notes)
-	}
 
+	// D14: inbound links are now real (from page_links table), no staged note.
+	// cl-link has no inbound links, so direction=in returns empty neighbors.
 	inOnly, err := b.handleGraphNeighbors(ctx, GraphNeighborsArgs{PageID: "cl-link", Direction: "in"})
 	if err != nil {
 		t.Fatalf("in graph: %v", err)
 	}
-	if len(inOnly.Neighbors) != 0 || len(inOnly.Notes) != 1 {
-		t.Fatalf("in graph = %+v, want empty neighbors + note", inOnly)
+	if len(inOnly.Neighbors) != 0 {
+		t.Fatalf("in graph neighbors = %+v, want empty (no inbound links)", inOnly.Neighbors)
+	}
+
+	// Verify inbound works: en-a should have cl-link as inbound
+	inA, err := b.handleGraphNeighbors(ctx, GraphNeighborsArgs{PageID: "en-a", Direction: "in"})
+	if err != nil {
+		t.Fatalf("in graph en-a: %v", err)
+	}
+	if len(inA.Neighbors) != 1 || inA.Neighbors[0].PageID != "cl-link" {
+		t.Fatalf("in graph en-a = %+v, want 1 inbound from cl-link", inA.Neighbors)
 	}
 }
 
