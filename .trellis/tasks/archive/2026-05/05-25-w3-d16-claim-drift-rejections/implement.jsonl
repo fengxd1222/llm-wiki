@@ -1,0 +1,6 @@
+{"file": "spec-v2/docs/roadmap-30d.md", "reason": "D16 范围"}
+{"file": "spec-v2/docs/agent-protocol.md", "reason": "§9 rejections memory + DRIFT 错误码"}
+{"file": "spec-v2/docs/claim-extraction.md", "reason": "§6 claim 抽取算法 (templates)"}
+{"file": "spec-v2/docs/mcp-tools.md", "reason": "§6 read_claim sources 字段语义 + drift_status 4 态"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "migration 0005 + claim_sources INDEX"}

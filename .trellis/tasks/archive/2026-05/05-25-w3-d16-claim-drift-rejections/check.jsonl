@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "代码质量"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "校验 migration 0005 + claim_sources 索引命中"}
+{"file": "spec-v2/docs/agent-protocol.md", "reason": "校验 rejections 1:1 写盘 + DRIFT 状态"}
+{"file": "spec-v2/docs/mcp-tools.md", "reason": "校验 read_claim sources 字段 + drift_status 真值"}
