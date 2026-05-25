@@ -271,6 +271,11 @@ func ReindexWiki(ctx context.Context, db *index.DB, vaultRoot string) (*ReindexR
 		return nil, fmt.Errorf("wiki path is not a directory: %s", wikiDir)
 	}
 
+	// Clear stale page_links before full reindex.
+	if err := index.DeleteAllPageLinks(ctx, db); err != nil {
+		return nil, fmt.Errorf("clear page_links: %w", err)
+	}
+
 	res := &ReindexResult{}
 	walkErr := filepath.WalkDir(wikiDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -298,6 +303,12 @@ func ReindexWiki(ctx context.Context, db *index.DB, vaultRoot string) (*ReindexR
 		}
 		if err := index.UpsertPage(ctx, db, row); err != nil {
 			return fmt.Errorf("upsert %s: %w", path, err)
+		}
+		// Populate page_links from outbound [[...]] references.
+		if len(page.Outbounds) > 0 {
+			if err := index.ReplacePageLinks(ctx, db, row.ID, page.Outbounds); err != nil {
+				return fmt.Errorf("page_links %s: %w", row.ID, err)
+			}
 		}
 		res.Count++
 		return nil
