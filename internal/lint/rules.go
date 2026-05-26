@@ -82,6 +82,10 @@ func (r *SchemaViolationRule) Run(ctx context.Context, vaultRoot string, db *ind
 		return nil
 	}
 	for _, p := range pages {
+		// Skip system files that don't need type/title frontmatter.
+		if isSystemPage(p.ID) {
+			continue
+		}
 		if p.Type == "unknown" {
 			findings = append(findings, Finding{
 				Rule:     "schema_violation",
@@ -144,7 +148,7 @@ func (r *MissingIndexEntryRule) Run(ctx context.Context, vaultRoot string, db *i
 		return nil
 	}
 	for _, p := range pages {
-		if p.Type == "unknown" {
+		if p.Type == "unknown" || isSystemPage(p.ID) {
 			continue
 		}
 		if !strings.Contains(indexContent, p.ID) {
@@ -158,4 +162,13 @@ func (r *MissingIndexEntryRule) Run(ctx context.Context, vaultRoot string, db *i
 		}
 	}
 	return findings
+}
+
+// isSystemPage returns true for vault system files that don't need frontmatter.
+func isSystemPage(id string) bool {
+	switch id {
+	case "index", "log":
+		return true
+	}
+	return false
 }
