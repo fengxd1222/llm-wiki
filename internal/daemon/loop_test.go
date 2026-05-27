@@ -61,7 +61,7 @@ func TestDaemonLockManager(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	defer d.Shutdown()
+	t.Cleanup(func() { _ = d.Shutdown() })
 
 	lm := d.LockManager()
 	if lm == nil {

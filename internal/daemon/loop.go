@@ -27,6 +27,7 @@ type Daemon struct {
 	lockMgr *lock.Manager
 	watcher *watcher.Watcher
 	logger  *log.Logger
+	logFile *os.File
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
 }
@@ -60,6 +61,7 @@ func New(cfg Config) (*Daemon, error) {
 		db:      db,
 		lockMgr: lock.NewManager(),
 		watcher: w,
+		logFile: logFile,
 		logger:  log.New(logFile, "[wikimindd] ", log.LstdFlags),
 	}, nil
 }
@@ -129,6 +131,9 @@ func (d *Daemon) Shutdown() error {
 	d.wg.Wait()
 	d.db.Close()
 	d.logger.Printf("stopped")
+	if d.logFile != nil {
+		_ = d.logFile.Close()
+	}
 	return nil
 }
 
