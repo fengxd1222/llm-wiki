@@ -452,3 +452,39 @@ Implemented agent_handshake, git worktree per agent, reviews/bundles persistence
 ### Next Steps
 
 - None - task complete
+
+
+## Session 14: v0.1.0 Code Quality Audit + project state cleanup
+
+**Date**: 2026-05-28
+**Task**: v0.1.0 Code Quality Audit + project state cleanup
+**Branch**: `main`
+
+### Summary
+
+完成 v0.1.0 全量只读代码质量审查（cmd + 17 internal + verify + worker + go.mod），产出 2530 行 audit report 含 75 entries：0 P0 / 24 P1 / 48 P2 / 13 Spec-Drift。最终推荐：v0.1.1 patch 13 项 + v0.2 重构剩余 + 一次 trellis-update-spec 清 Spec-Drift。顺带清理 bootstrap 任务遗留 backend spec、trellis 工具配置、多 agent 配置。源代码 0 修改。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5d88ffc` | (see git log) |
+| `16d0644` | (see git log) |
+| `2577458` | (see git log) |
+| `c95cdf3` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

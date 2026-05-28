@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 13
-- **Last Active**: 2026-05-25
+- **Total Sessions**: 14
+- **Last Active**: 2026-05-28
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~454 | Active |
+| `journal-1.md` | ~490 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 14 | 2026-05-28 | v0.1.0 Code Quality Audit + project state cleanup | `5d88ffc`, `16d0644`, `2577458`, `c95cdf3` | `main` |
 | 13 | 2026-05-25 | W2-W4 D11-D22+D27 全链路实现 | `1d58497`, `b2695a2`, `2703077`, `674b156`, `44a524e`, `c4ba297`, `28b1b44`, `db9da82`, `0b35408`, `0d4e6cf`, `a90ab58`, `192c8c1`, `ab4cdfd`, `86e493a`, `6c65511`, `9da172b`, `112c80b` | `main` |
 | 12 | 2026-05-24 | D11 MCP 写工具与 review 提交流 | `c9e3033`, `8023e52` | `main` |
 | 11 | 2026-05-24 | W2 D10 handshake worktree review base | `5eebd8d` | `main` |
