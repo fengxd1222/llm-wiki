@@ -1,54 +1,121 @@
 # Quality Guidelines
 
-> Code quality standards for backend development.
+> WikiMind 后端质量基线。
+> 下方 `<spec-entry>` 块是特定场景的契约（CLI、MCP 工具、git 提交）；本顶部是跨场景通用质量门槛。
 
 ---
 
 ## Overview
 
-<!--
-Document your project's quality standards here.
+WikiMind 是 Go 后端 + Python worker + 本地 SQLite 的 local-first 多 Agent 协作系统。
+质量基线围绕三个不可妥协的点：
 
-Questions to answer:
-- What patterns are forbidden?
-- What linting rules do you enforce?
-- What are your testing requirements?
-- What code review standards apply?
--->
-
-(To be filled by the team)
-
----
-
-## Forbidden Patterns
-
-<!-- Patterns that should never be used and why -->
-
-(To be filled by the team)
+1. **写闸门唯一**——所有 vault 写操作过 `internal/commit.Commit`（W1）/ daemon commit loop（W2+）。
+2. **协议契约稳定**——MCP 错误码、CLI 输出格式、change-log JSON 字段、git commit message 模板都是跨进程契约，改前先看 spec-v2。
+3. **测试覆盖真实路径**——CLI 跑真实命令、真实 vault、真实 git；不 mock 文件系统、git、SQLite。
 
 ---
 
 ## Required Patterns
 
-<!-- Patterns that must always be used -->
+- **包级 `doc.go`**：每个 `internal/<pkg>` 都有 `doc.go`，写明职责 + 当前 D 阶段能力清单。
+- **Sentinel error + `%w` wrap**：参考 [error-handling.md](./error-handling.md)。
+- **`context.Context` 首参**：所有 I/O 函数第一参数 `ctx context.Context`。
+- **参数化 SQL**：`?` 占位符，参考 [database-guidelines.md](./database-guidelines.md)。
+- **路径归一化**：跨平台路径必须先经 `internal/vault.NormalizePath` 处理；vault-relative 路径以 POSIX 风格存储。
+- **测试用真实依赖**：不 mock `os` / `git` / `database/sql`；用 `t.TempDir()` 起隔离环境。
+- **跨平台 git init**：`git init --initial-branch=main` 显式指定（见下方 spec-entry "Cross-platform git init default branch"）。
 
-(To be filled by the team)
+---
+
+## Forbidden Patterns
+
+- ❌ **panic 在业务路径**：除 `init()` 注册驱动和不可达的 BUG 兜底，全部 `return err`。
+- ❌ **直接写 vault 文件 / git commit**：绕过 `internal/commit.Commit` 导致 SQLite 与 git 漂移。
+- ❌ **修改已落库 migration**：只能加新 migration。
+- ❌ **修改 MCP 协议错误码字面量**：`SESSION_REQUIRED` 这类字符串是契约，破坏即 schema major 升级。
+- ❌ **`log.Printf` / `slog.Info` 替代审计**：审计走 change-log.jsonl，不走标准 log 库（见 [logging-guidelines.md](./logging-guidelines.md)）。
+- ❌ **静默吞错**：`_, _ = doSomething()` 仅在已有主错误、清理操作时允许，且需注释说明。
+- ❌ **CLI 输出泄漏 wrap chain**：用户只该见 "error: vault path is required"，不该见 6 层 `: : :`。
+- ❌ **硬编码 `"main"` 分支名**：跨平台用 `defaultBaseRef(ctx, root)` 探测。
 
 ---
 
 ## Testing Requirements
 
-<!-- What level of testing is expected -->
+### 覆盖维度
 
-(To be filled by the team)
+| 维度 | 工具 / 位置 | 必须项 |
+|------|------------|-------|
+| 单元测试 | `xxx_test.go` 同包 | 所有导出函数的正常 + 错误路径 |
+| CLI E2E | `cmd/wikimind/*_test.go` | `init` / `status` / `ingest` / `revert` / `mcp serve` 主路径 |
+| 集成验收 | `verify/<feature>/` | FTS5、IPC bridge、MCP tools 端到端 |
+| 跨平台兜底 | CI smoke + 单测 | `git init` 默认分支、路径分隔符、行尾换行 |
+
+### 提交前必跑
+
+```bash
+go test ./...
+go build ./...
+go vet ./...
+```
+
+任一失败不提交。MCP write 工具相关 PR 必须额外跑通 D11 全部测试。
+
+### 测试风格
+
+- **不 mock 文件系统 / git / SQLite**：用 `t.TempDir()` 起隔离 vault，跑真实命令；速度可接受（W3 D20 实测 < 5s）。
+- **断言错误用 `errors.Is`**：`if !errors.Is(err, ErrXxx) { t.Fatalf(...) }`。
+- **CLI 测试用 buffer 注入 writer**：`cmd := newRootCommand(&stdout, &stderr)`，断言 stdout/stderr 内容。
+- **表驱动**：多 case 测试用 `for _, tc := range []struct{...}{...}`，每个 case 命名清晰。
+- **跨平台标记**：仅 Unix / 仅 Windows 的测试用 `//go:build` 标签隔离。
 
 ---
 
 ## Code Review Checklist
 
-<!-- What reviewers should check -->
+代码评审（人或 trellis-check 子 Agent）必须核对：
 
-(To be filled by the team)
+### 结构
+
+- [ ] 新代码放进了"按职责切"的包（不是按"层"切，参考 [directory-structure.md](./directory-structure.md)）。
+- [ ] 包级 `doc.go` 描述与新功能一致。
+- [ ] 没有把新东西塞进 `internal/model` 当垃圾桶——跨包共享类型才上提。
+
+### 错误
+
+- [ ] 新 sentinel 命名 `Err<Subject><Verb>`；协议契约错误用 `SCREAMING_SNAKE_CASE`。
+- [ ] 所有错误路径都有测试。
+- [ ] 比较错误用 `errors.Is` / `errors.As`，不用 `==` / 字符串比较。
+
+### 数据
+
+- [ ] 新 SQL 是参数化的，没有字符串拼接。
+- [ ] 新 migration 文件名连号、有对称 Up/Down、`IF [NOT] EXISTS`。
+- [ ] 新表/列同步进了 spec-v2/docs/architecture.md §4.2。
+
+### 写入
+
+- [ ] 任何 vault 写都经 `commit.Commit` 或 `CommitWithActor`。
+- [ ] change-log op 字面量已加进 spec-v2/templates/change-log-format.md。
+- [ ] git commit message 格式 `<op>: <summary> (seq=<N>)`。
+
+### 测试
+
+- [ ] 新代码有测试，覆盖正常 + 至少一个错误路径。
+- [ ] CLI / MCP 主路径有 E2E（跑真实命令，不 mock）。
+- [ ] `go test ./...` + `go build ./...` + `go vet ./...` 全绿。
+
+### 协议
+
+- [ ] 没改 MCP 工具签名字面量 / 错误码 / 必填字段（改则 schema major）。
+- [ ] CLI 输出格式没破坏已有断言（CLI 契约也是协议）。
+
+---
+
+## Domain-Specific Scenarios
+
+下面是按场景沉淀的契约 spec-entry：实现/评审新功能时如果命中某场景，必须先读对应条目。
 
 <spec-entry category="quality" keywords="cobra-cli,vault-init,status-contract,go-embed,schema-templates" date="2026-05-22" source="cmd/wikimind/command.go:12;internal/vault/vault.go:46;spec-v2/templates/templates.go:9">
 
