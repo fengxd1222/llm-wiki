@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "sentinel / 不暴露 sql.ErrNoRows / fail-fast"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "参数化 / LIKE 转义"}
