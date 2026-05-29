@@ -59,6 +59,13 @@ var (
 	ErrWorktreeCreateFailed = errors.New("WORKTREE_CREATE_FAILED")
 )
 
+// request_review bundling error codes — uppercase for the same MCP-client
+// parsing reason; exported as package sentinels so callers can errors.Is them.
+var (
+	ErrCrossSessionBundle   = errors.New("CROSS_SESSION_BUNDLE")
+	ErrReviewAlreadyBundled = errors.New("REVIEW_ALREADY_BUNDLED")
+)
+
 // daemonVersion 在 wiki_info 响应中返回；与 cmd/wikimind 的 version 解耦
 // 一些——MCP 进程语义上是 daemon 角色（D10+ 由真正 daemon 接管前 staged）。
 const daemonVersion = "0.1.0-w2"
@@ -430,13 +437,13 @@ func (b *vaultBackend) handleRequestReview(ctx context.Context, args RequestRevi
 			return RequestReviewResult{}, err
 		}
 		if review.Agent != sess.Agent || review.SessionID != sess.SessionID {
-			return RequestReviewResult{}, errors.New("CROSS_SESSION_BUNDLE")
+			return RequestReviewResult{}, ErrCrossSessionBundle
 		}
 		if review.Status != "pending" {
 			return RequestReviewResult{}, fmt.Errorf("%w: review %s is %s", proposal.ErrSchemaViolation, id, review.Status)
 		}
 		if review.BundleID != "" {
-			return RequestReviewResult{}, errors.New("REVIEW_ALREADY_BUNDLED")
+			return RequestReviewResult{}, ErrReviewAlreadyBundled
 		}
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
@@ -489,7 +496,7 @@ func (b *vaultBackend) handleLogAppend(ctx context.Context, args LogAppendArgs) 
 	if len(args.Links) > 0 {
 		summary += " " + strings.Join(args.Links, " ")
 	}
-	entry, err := commit.CommitWithActor(ctx, b.root, sess.Agent, "append_log", summary, nil)
+	entry, err := commit.CommitWithActor(ctx, b.root, sess.Agent, "log_append", summary, nil)
 	if err != nil {
 		return LogAppendResult{}, err
 	}

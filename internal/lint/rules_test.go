@@ -150,6 +150,17 @@ func TestRunRulesSummary(t *testing.T) {
 	_ = findings
 }
 
+// TestRuleCountMatchesAllRules 锁定 RuleCount 与 AllRules 同源——CLI lint
+// banner 的规则数从 RuleCount 派生，不再硬编码（F-049）。
+func TestRuleCountMatchesAllRules(t *testing.T) {
+	if RuleCount() != len(AllRules()) {
+		t.Fatalf("RuleCount() = %d, want %d", RuleCount(), len(AllRules()))
+	}
+	if RuleCount() != 5 {
+		t.Fatalf("RuleCount() = %d, want 5 built-in rules", RuleCount())
+	}
+}
+
 func TestIsSystemPage(t *testing.T) {
 	if !isSystemPage("index") {
 		t.Fatal("index should be system page")

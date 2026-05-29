@@ -48,6 +48,14 @@ func AllRules() []Rule {
 	}
 }
 
+// RuleCount returns the number of built-in lint rules.
+//
+// The CLI lint banner uses this as the single source of truth for the rule
+// count instead of hardcoding a number that drifts out of sync.
+func RuleCount() int {
+	return len(AllRules())
+}
+
 // RunRules executes the given rules and returns findings + summary.
 func RunRules(ctx context.Context, vaultRoot string, db *index.DB, rules []Rule) ([]Finding, Summary) {
 	var findings []Finding

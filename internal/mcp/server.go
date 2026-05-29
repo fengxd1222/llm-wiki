@@ -42,118 +42,89 @@ func NewServer(ctx context.Context, vaultRoot string, db *index.DB) (*sdk.Server
 	return server, nil
 }
 
+// toolSpec 把一个 tool 的元数据 + handler 注册逻辑打包，让工具清单成为
+// 单一数据源——registerTools、ToolCount、RegisteredTools 都从这里派生，
+// banner 里的工具数不再硬编码。
+type toolSpec struct {
+	name        string
+	description string
+	readOnly    bool
+	register    func(server *sdk.Server, b *vaultBackend, t *sdk.Tool)
+}
+
+// toolSpecs 是 WikiMind MCP server 注册的全部工具的权威清单。
+//
+// 只读 tool 统一打 ReadOnlyHint=true——让 MCP host（如 Claude Code /
+// Claude Desktop）跳过 user confirmation（mcp-tools.md §0、§22）；写工具
+// （propose_*/request_review/log_append/acquire_lock/release_lock/
+// agent_handshake）打 ReadOnlyHint=false。
+var toolSpecs = []toolSpec{
+	{"agent_handshake", "Register agent session, negotiate schema version, get worktree.", false,
+		func(s *sdk.Server, b *vaultBackend, t *sdk.Tool) { sdk.AddTool(s, t, wrapHandler(b.handleAgentHandshake)) }},
+	{"wiki_info", "Get vault overview (root path, page counts, schema_version, daemon version).", true,
+		func(s *sdk.Server, b *vaultBackend, t *sdk.Tool) { sdk.AddTool(s, t, wrapHandler(b.handleWikiInfo)) }},
+	{"read_page", "Read a wiki page by id or vault-relative path.", true,
+		func(s *sdk.Server, b *vaultBackend, t *sdk.Tool) { sdk.AddTool(s, t, wrapHandler(b.handleReadPage)) }},
+	{"read_raw", "Read a raw file under raw/. Use read_raw_anchor for anchored quote_hash reads.", true,
+		func(s *sdk.Server, b *vaultBackend, t *sdk.Tool) { sdk.AddTool(s, t, wrapHandler(b.handleReadRaw)) }},
+	{"list_index", "List indexed pages with optional type / prefix filter + limit/offset.", true,
+		func(s *sdk.Server, b *vaultBackend, t *sdk.Tool) { sdk.AddTool(s, t, wrapHandler(b.handleListIndex)) }},
+	{"read_raw_anchor", "Read a heading, paragraph, or char-span anchor from raw/ and return quote_hash.", true,
+		func(s *sdk.Server, b *vaultBackend, t *sdk.Tool) { sdk.AddTool(s, t, wrapHandler(b.handleReadRawAnchor)) }},
+	{"read_claim", "Read a claim page and staged source validation metadata.", true,
+		func(s *sdk.Server, b *vaultBackend, t *sdk.Tool) { sdk.AddTool(s, t, wrapHandler(b.handleReadClaim)) }},
+	{"search", "Search wiki pages with FTS5/LIKE routing and staged filters.", true,
+		func(s *sdk.Server, b *vaultBackend, t *sdk.Tool) { sdk.AddTool(s, t, wrapHandler(b.handleSearch)) }},
+	{"graph_neighbors", "Read page graph neighbors from live wikilink parsing.", true,
+		func(s *sdk.Server, b *vaultBackend, t *sdk.Tool) { sdk.AddTool(s, t, wrapHandler(b.handleGraphNeighbors)) }},
+	{"get_history", "Read git/change-log history for a wiki page.", true,
+		func(s *sdk.Server, b *vaultBackend, t *sdk.Tool) { sdk.AddTool(s, t, wrapHandler(b.handleGetHistory)) }},
+	{"propose_page", "Propose a new wiki page by writing a patch into the review queue.", false,
+		func(s *sdk.Server, b *vaultBackend, t *sdk.Tool) { sdk.AddTool(s, t, wrapHandler(b.handleProposePage)) }},
+	{"propose_edit", "Propose an edit to an existing wiki page using base_hash concurrency control.", false,
+		func(s *sdk.Server, b *vaultBackend, t *sdk.Tool) { sdk.AddTool(s, t, wrapHandler(b.handleProposeEdit)) }},
+	{"propose_claim", "Propose a verified claim with quote_hash and provenance checks.", false,
+		func(s *sdk.Server, b *vaultBackend, t *sdk.Tool) { sdk.AddTool(s, t, wrapHandler(b.handleProposeClaim)) }},
+	{"request_review", "Bundle pending review proposals for user review.", false,
+		func(s *sdk.Server, b *vaultBackend, t *sdk.Tool) { sdk.AddTool(s, t, wrapHandler(b.handleRequestReview)) }},
+	{"log_append", "Append an audit note to wiki/log.md and commit it directly.", false,
+		func(s *sdk.Server, b *vaultBackend, t *sdk.Tool) { sdk.AddTool(s, t, wrapHandler(b.handleLogAppend)) }},
+	{"acquire_lock", "Acquire an advisory lock on a page to prevent concurrent edits.", false,
+		func(s *sdk.Server, b *vaultBackend, t *sdk.Tool) { sdk.AddTool(s, t, wrapHandler(b.handleAcquireLock)) }},
+	{"release_lock", "Release an advisory lock on a page.", false,
+		func(s *sdk.Server, b *vaultBackend, t *sdk.Tool) { sdk.AddTool(s, t, wrapHandler(b.handleReleaseLock)) }},
+}
+
 // registerTools 把 handler 装上 server。
 //
-// go-sdk AddTool 是泛型函数，每个 tool 一行——typed In/Out 让 SDK 自动
-// 推断 schema 并校验 request。
-//
-// 所有已上线 tool 都是只读，统一打 ReadOnlyHint=true——让 MCP host（如 Claude
-// Code / Claude Desktop）跳过 user confirmation（mcp-tools.md §0、§22）。
+// go-sdk AddTool 是泛型函数，typed In/Out 让 SDK 自动推断 schema 并校验
+// request——每个 tool 的注册闭包写在 toolSpecs 里，这里只做遍历。
 func registerTools(server *sdk.Server, b *vaultBackend) {
-	readOnly := &sdk.ToolAnnotations{ReadOnlyHint: true}
-	writeMeta := &sdk.ToolAnnotations{ReadOnlyHint: false}
+	for i := range toolSpecs {
+		spec := toolSpecs[i]
+		spec.register(server, b, &sdk.Tool{
+			Name:        spec.name,
+			Description: spec.description,
+			Annotations: &sdk.ToolAnnotations{ReadOnlyHint: spec.readOnly},
+		})
+	}
+}
 
-	sdk.AddTool(server, &sdk.Tool{
-		Name:        "agent_handshake",
-		Description: "Register agent session, negotiate schema version, get worktree.",
-		Annotations: writeMeta,
-	}, wrapHandler(b.handleAgentHandshake))
+// ToolCount 返回 WikiMind MCP server 注册的工具总数。
+//
+// CLI banner（mcp serve）用它替代硬编码数字，保证 banner 与实际注册数永远
+// 一致（toolSpecs 是单一数据源）。
+func ToolCount() int {
+	return len(toolSpecs)
+}
 
-	sdk.AddTool(server, &sdk.Tool{
-		Name:        "wiki_info",
-		Description: "Get vault overview (root path, page counts, schema_version, daemon version).",
-		Annotations: readOnly,
-	}, wrapHandler(b.handleWikiInfo))
-
-	sdk.AddTool(server, &sdk.Tool{
-		Name:        "read_page",
-		Description: "Read a wiki page by id or vault-relative path.",
-		Annotations: readOnly,
-	}, wrapHandler(b.handleReadPage))
-
-	sdk.AddTool(server, &sdk.Tool{
-		Name:        "read_raw",
-		Description: "Read a raw file under raw/. Use read_raw_anchor for anchored quote_hash reads.",
-		Annotations: readOnly,
-	}, wrapHandler(b.handleReadRaw))
-
-	sdk.AddTool(server, &sdk.Tool{
-		Name:        "list_index",
-		Description: "List indexed pages with optional type / prefix filter + limit/offset.",
-		Annotations: readOnly,
-	}, wrapHandler(b.handleListIndex))
-
-	sdk.AddTool(server, &sdk.Tool{
-		Name:        "read_raw_anchor",
-		Description: "Read a heading, paragraph, or char-span anchor from raw/ and return quote_hash.",
-		Annotations: readOnly,
-	}, wrapHandler(b.handleReadRawAnchor))
-
-	sdk.AddTool(server, &sdk.Tool{
-		Name:        "read_claim",
-		Description: "Read a claim page and staged source validation metadata.",
-		Annotations: readOnly,
-	}, wrapHandler(b.handleReadClaim))
-
-	sdk.AddTool(server, &sdk.Tool{
-		Name:        "search",
-		Description: "Search wiki pages with FTS5/LIKE routing and staged filters.",
-		Annotations: readOnly,
-	}, wrapHandler(b.handleSearch))
-
-	sdk.AddTool(server, &sdk.Tool{
-		Name:        "graph_neighbors",
-		Description: "Read page graph neighbors from live wikilink parsing.",
-		Annotations: readOnly,
-	}, wrapHandler(b.handleGraphNeighbors))
-
-	sdk.AddTool(server, &sdk.Tool{
-		Name:        "get_history",
-		Description: "Read git/change-log history for a wiki page.",
-		Annotations: readOnly,
-	}, wrapHandler(b.handleGetHistory))
-
-	sdk.AddTool(server, &sdk.Tool{
-		Name:        "propose_page",
-		Description: "Propose a new wiki page by writing a patch into the review queue.",
-		Annotations: writeMeta,
-	}, wrapHandler(b.handleProposePage))
-
-	sdk.AddTool(server, &sdk.Tool{
-		Name:        "propose_edit",
-		Description: "Propose an edit to an existing wiki page using base_hash concurrency control.",
-		Annotations: writeMeta,
-	}, wrapHandler(b.handleProposeEdit))
-
-	sdk.AddTool(server, &sdk.Tool{
-		Name:        "propose_claim",
-		Description: "Propose a verified claim with quote_hash and provenance checks.",
-		Annotations: writeMeta,
-	}, wrapHandler(b.handleProposeClaim))
-
-	sdk.AddTool(server, &sdk.Tool{
-		Name:        "request_review",
-		Description: "Bundle pending review proposals for user review.",
-		Annotations: writeMeta,
-	}, wrapHandler(b.handleRequestReview))
-
-	sdk.AddTool(server, &sdk.Tool{
-		Name:        "log_append",
-		Description: "Append an audit note to wiki/log.md and commit it directly.",
-		Annotations: writeMeta,
-	}, wrapHandler(b.handleLogAppend))
-
-	sdk.AddTool(server, &sdk.Tool{
-		Name:        "acquire_lock",
-		Description: "Acquire an advisory lock on a page to prevent concurrent edits.",
-		Annotations: writeMeta,
-	}, wrapHandler(b.handleAcquireLock))
-
-	sdk.AddTool(server, &sdk.Tool{
-		Name:        "release_lock",
-		Description: "Release an advisory lock on a page.",
-		Annotations: writeMeta,
-	}, wrapHandler(b.handleReleaseLock))
+// RegisteredTools 返回注册工具名的副本，按注册顺序排列。
+func RegisteredTools() []string {
+	names := make([]string, len(toolSpecs))
+	for i := range toolSpecs {
+		names[i] = toolSpecs[i].name
+	}
+	return names
 }
 
 // wrapHandler 把 "args → result, error" 风格的 handler 适配成 go-sdk 期望的

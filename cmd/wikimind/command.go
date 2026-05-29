@@ -105,7 +105,7 @@ func newMcpServeCommand(stdout, stderr io.Writer) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("build mcp server: %w", err)
 			}
-			logger.Printf("ready: 15 tools registered")
+			logger.Printf("ready: %d tools registered", mcppkg.ToolCount())
 
 			if err := mcppkg.RunStdio(ctx, server); err != nil {
 				// ctx cancel 触发的关闭走 SDK 内部 EOF/ContextDone；
@@ -818,7 +818,7 @@ func newLintCommand(stdout io.Writer) *cobra.Command {
 	var jsonOutput bool
 	cmd := &cobra.Command{
 		Use:   "lint",
-		Short: "Run vault health checks (8 rules)",
+		Short: fmt.Sprintf("Run vault health checks (%d rules)", lint.RuleCount()),
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			vaultRoot, db, err := openVaultAndIndex()

@@ -89,6 +89,19 @@ func TestNewServerListsTools(t *testing.T) {
 	if len(tools) != len(wantNames) {
 		t.Errorf("tool count = %d, want %d", len(tools), len(wantNames))
 	}
+	// ToolCount/RegisteredTools 是 CLI banner 的单一数据源——必须与实际
+	// 注册到 server 的 tool 数完全一致（F-048）。
+	if ToolCount() != len(tools) {
+		t.Errorf("ToolCount() = %d, want %d (live registered)", ToolCount(), len(tools))
+	}
+	if got := len(RegisteredTools()); got != ToolCount() {
+		t.Errorf("len(RegisteredTools()) = %d, want ToolCount() = %d", got, ToolCount())
+	}
+	for _, name := range RegisteredTools() {
+		if _, ok := wantNames[name]; !ok {
+			t.Errorf("RegisteredTools() has unexpected tool %q", name)
+		}
+	}
 }
 
 // TestRunStdioRejectsNilServer 防御 RunStdio 被 misuse；ctx 还没 cancel，

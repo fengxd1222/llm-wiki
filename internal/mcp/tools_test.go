@@ -244,6 +244,18 @@ func TestHandleAgentHandshakeQueueFull(t *testing.T) {
 	}
 }
 
+// TestBundleSentinelErrorCodes 锁定 request_review bundling sentinel 的
+// 错误码字面量——这些是 MCP 协议契约（client 按字面量解析），改字面量即
+// schema major breaking change（F-025）。
+func TestBundleSentinelErrorCodes(t *testing.T) {
+	if ErrCrossSessionBundle.Error() != "CROSS_SESSION_BUNDLE" {
+		t.Errorf("ErrCrossSessionBundle = %q, want CROSS_SESSION_BUNDLE", ErrCrossSessionBundle.Error())
+	}
+	if ErrReviewAlreadyBundled.Error() != "REVIEW_ALREADY_BUNDLED" {
+		t.Errorf("ErrReviewAlreadyBundled = %q, want REVIEW_ALREADY_BUNDLED", ErrReviewAlreadyBundled.Error())
+	}
+}
+
 func TestD11ProposePageAndRequestReview(t *testing.T) {
 	ctx := context.Background()
 	b, cleanup := newBackend(t)
@@ -319,8 +331,8 @@ func TestD11ProposePageAndRequestReview(t *testing.T) {
 		Title:        "Concept proposal",
 		Kind:         "custom",
 	})
-	if err == nil || !strings.Contains(err.Error(), "CROSS_SESSION_BUNDLE") {
-		t.Fatalf("handleRequestReview cross-session err = %v, want CROSS_SESSION_BUNDLE", err)
+	if !errors.Is(err, ErrCrossSessionBundle) {
+		t.Fatalf("handleRequestReview cross-session err = %v, want ErrCrossSessionBundle", err)
 	}
 
 	bundle, err := b.handleRequestReview(ctx, RequestReviewArgs{
@@ -349,8 +361,8 @@ func TestD11ProposePageAndRequestReview(t *testing.T) {
 		Title:        "Concept proposal",
 		Kind:         "custom",
 	})
-	if err == nil || !strings.Contains(err.Error(), "REVIEW_ALREADY_BUNDLED") {
-		t.Fatalf("handleRequestReview bundled err = %v, want REVIEW_ALREADY_BUNDLED", err)
+	if !errors.Is(err, ErrReviewAlreadyBundled) {
+		t.Fatalf("handleRequestReview bundled err = %v, want ErrReviewAlreadyBundled", err)
 	}
 }
 
@@ -602,7 +614,7 @@ func TestD11LogAppend(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadEntryBySeq: %v", err)
 	}
-	if entry.Actor != "codex-cli" || entry.Op != "append_log" {
+	if entry.Actor != "codex-cli" || entry.Op != "log_append" {
 		t.Fatalf("change-log entry = %+v", entry)
 	}
 }
