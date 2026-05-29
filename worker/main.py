@@ -1,8 +1,10 @@
-"""WikiMind ingest worker — W0 skeleton.
+"""WikiMind ingest worker — W0 skeleton (PDF/image parsing deferred to v0.2).
 
 从 stdin 读一行任务 JSON，向 stdout 输出 NDJSON 事件流。
 协议见 spec-v2/docs/engineering-decisions.md §1。
-完整 parser（markdown / html / pdf / image / audio）在 roadmap D13 实现。
+
+当前状态：仅回 skeleton 事件，不做真实解析。Go 侧目前也没有调用此 worker。
+完整 parser（markdown / html / pdf / image / audio）推迟到 v0.2 milestone。
 """
 
 from __future__ import annotations

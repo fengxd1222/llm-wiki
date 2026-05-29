@@ -1,7 +1,7 @@
 [project]
 name = "wikimind-worker"
 version = "0.0.1"
-description = "WikiMind ingest worker — parse / OCR / transcribe"
+description = "WikiMind ingest worker — W0 skeleton (PDF/image parsing deferred to v0.2)"
 requires-python = ">=3.11"
 dependencies = []
 

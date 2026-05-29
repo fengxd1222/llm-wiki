@@ -685,13 +685,13 @@ func newDoctorCommand(stdout io.Writer) *cobra.Command {
 				out, _ := exec.Command("python3", "--version").Output()
 				fmt.Fprintf(stdout, "✓ python3: %s\n", strings.TrimSpace(string(out)))
 
-				// Check pypdf
+				// pypdf is optional and NOT used by the v0.1.x worker (skeleton).
+				// Report as informational so doctor doesn't imply PDF support.
 				checkPypdf := exec.Command("python3", "-c", "import pypdf; print(pypdf.__version__)")
 				if pypdfOut, err := checkPypdf.Output(); err != nil {
-					fmt.Fprintf(stdout, "✗ pypdf: not installed (pip install pypdf)\n")
-					allOK = false
+					fmt.Fprintf(stdout, "⚠ pypdf: optional, not used by v0.1.x worker (PDF parsing deferred to v0.2)\n")
 				} else {
-					fmt.Fprintf(stdout, "✓ pypdf: %s\n", strings.TrimSpace(string(pypdfOut)))
+					fmt.Fprintf(stdout, "⚠ pypdf: %s installed, but not used by v0.1.x worker (deferred to v0.2)\n", strings.TrimSpace(string(pypdfOut)))
 				}
 			}
 

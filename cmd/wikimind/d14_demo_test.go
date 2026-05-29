@@ -135,11 +135,11 @@ A learning loop connects [[compounding]] knowledge with [[en-practice]].
 		t.Fatalf("inbound to compounding = %+v, want 1 from learning-loop", inbound)
 	}
 
-	// Phase 7: doctor command runs (may fail on pypdf but should not error fatally)
+	// Phase 7: doctor command runs (pypdf is now optional/warning, not a failure)
 	out.Reset()
 	cmd = newRootCommand(&out, &out)
 	cmd.SetArgs([]string{"doctor"})
-	// doctor returns error if any check fails (e.g. pypdf not installed) — that's OK
+	// doctor may still error if git/python3/vault checks fail — tolerate that here.
 	_ = cmd.Execute()
 	if !strings.Contains(out.String(), "git:") {
 		t.Fatalf("doctor output missing git check:\n%s", out.String())
