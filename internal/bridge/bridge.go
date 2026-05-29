@@ -11,12 +11,18 @@ import (
 )
 
 // SocketPath returns the IPC socket path for a vault.
-// Unix: <vault>/.wikimind/daemon.sock
-// Windows: \\.\pipe\wikimind-<hash>
+//
+// Both platforms use an AF_UNIX socket file (Go supports AF_UNIX on
+// Windows 10 1803+). We deliberately avoid the Named Pipe namespace
+// (\\.\pipe\...) because net.Listen("unix", ...) cannot bind it — that
+// mismatch crashed the daemon on Windows (F-041).
+//
+//   - Unix:    <vault>/.wikimind/daemon.sock
+//   - Windows: <TempDir>/wikimind-<base>.sock  (kept short to stay well
+//     under the AF_UNIX sun_path ~108-byte limit even for deep vaults)
 func SocketPath(vaultRoot string) string {
 	if runtime.GOOS == "windows" {
-		// Use a named pipe on Windows.
-		return `\\.\pipe\wikimind-` + filepath.Base(vaultRoot)
+		return filepath.Join(os.TempDir(), "wikimind-"+filepath.Base(vaultRoot)+".sock")
 	}
 	return filepath.Join(vaultRoot, ".wikimind", "daemon.sock")
 }
@@ -41,21 +47,17 @@ type Listener struct {
 }
 
 // Listen creates an IPC listener at the given socket path.
+//
+// Uses an AF_UNIX socket on all platforms (see SocketPath). The stale
+// socket file is removed first so a crashed daemon doesn't block rebind.
 func Listen(socketPath string) (*Listener, error) {
-	// Remove stale socket file.
-	if runtime.GOOS != "windows" {
-		_ = os.Remove(socketPath)
-	}
+	// Remove stale socket file (all platforms — Windows now uses a real file).
+	_ = os.Remove(socketPath)
 	if err := os.MkdirAll(filepath.Dir(socketPath), 0o755); err != nil {
 		return nil, fmt.Errorf("mkdir for socket: %w", err)
 	}
 
-	network := "unix"
-	if runtime.GOOS == "windows" {
-		network = "unix" // Go supports unix sockets on Windows 10+
-	}
-
-	ln, err := net.Listen(network, socketPath)
+	ln, err := net.Listen("unix", socketPath)
 	if err != nil {
 		return nil, fmt.Errorf("listen %s: %w", socketPath, err)
 	}
@@ -65,17 +67,14 @@ func Listen(socketPath string) (*Listener, error) {
 // Close closes the listener and removes the socket file.
 func (l *Listener) Close() error {
 	err := l.Listener.Close()
-	if runtime.GOOS != "windows" {
-		_ = os.Remove(l.path)
-	}
+	_ = os.Remove(l.path)
 	return err
 }
 
 // Dial connects to the daemon IPC socket.
 func Dial(ctx context.Context, socketPath string) (net.Conn, error) {
-	network := "unix"
 	var d net.Dialer
-	conn, err := d.DialContext(ctx, network, socketPath)
+	conn, err := d.DialContext(ctx, "unix", socketPath)
 	if err != nil {
 		return nil, fmt.Errorf("dial daemon: %w", err)
 	}

@@ -3,6 +3,7 @@ package watcher
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -25,6 +26,7 @@ type Watcher struct {
 	debounceMs time.Duration
 	done       chan struct{}
 	wg         sync.WaitGroup
+	closed     atomic.Bool
 
 	mu     sync.Mutex
 	timers map[string]*time.Timer
@@ -94,11 +96,15 @@ func (w *Watcher) Close() error {
 	close(w.done)
 	err := w.fsw.Close()
 	w.wg.Wait()
-	// Drain any pending timers.
+	// Mark closed and stop pending timers under the same lock the debounce
+	// callback uses, so no AfterFunc callback can send on the channel after
+	// we close it (F-042: send-on-closed-channel race).
 	w.mu.Lock()
+	w.closed.Store(true)
 	for _, t := range w.timers {
 		t.Stop()
 	}
+	w.timers = nil
 	w.mu.Unlock()
 	close(w.events)
 	return err
@@ -108,13 +114,21 @@ func (w *Watcher) debounce(path string, op fsnotify.Op) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
+	if w.closed.Load() {
+		return
+	}
 	if t, exists := w.timers[path]; exists {
 		t.Stop()
 	}
 	w.timers[path] = time.AfterFunc(w.debounceMs, func() {
 		w.mu.Lock()
+		defer w.mu.Unlock()
+		// Guard against Close() racing with this callback: once closed, the
+		// events channel is (or is about to be) closed — never send on it.
+		if w.closed.Load() {
+			return
+		}
 		delete(w.timers, path)
-		w.mu.Unlock()
 
 		select {
 		case w.events <- FileEvent{Path: path, Op: op, Ts: time.Now()}:

@@ -117,3 +117,60 @@ func TestWatcherClose(t *testing.T) {
 		t.Fatalf("Close hung")
 	}
 }
+
+// TestWatcherCloseRaceWithPendingTimer exercises the F-042 window: a debounce
+// timer is armed and about to fire when Close() runs. The atomic guard must
+// prevent any send on the closed events channel. Run with `go test -race`.
+func TestWatcherCloseRaceWithPendingTimer(t *testing.T) {
+	dir := t.TempDir()
+
+	w, err := New(20 * time.Millisecond)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if err := w.Add(dir); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	w.Start(ctx)
+
+	// Arm several debounce timers by creating files, then immediately Close
+	// so the AfterFunc callbacks race with channel close.
+	for i := 0; i < 10; i++ {
+		f := filepath.Join(dir, "race-"+string(rune('a'+i))+".md")
+		_ = os.WriteFile(f, []byte("x"), 0o644)
+	}
+
+	// Close right inside the debounce window — must not panic on closed channel.
+	time.Sleep(5 * time.Millisecond)
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	// Give any stray timers a chance to fire post-close; guard must swallow them.
+	time.Sleep(50 * time.Millisecond)
+}
+
+// TestWatcherDebounceAfterCloseNoPanic directly drives the close→callback
+// ordering to ensure the guard holds.
+func TestWatcherDebounceAfterCloseNoPanic(t *testing.T) {
+	dir := t.TempDir()
+	w, err := New(10 * time.Millisecond)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if err := w.Add(dir); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	w.Start(ctx)
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	// debounce() after close must be a no-op (closed guard), not a panic.
+	w.debounce(filepath.Join(dir, "late.md"), OpCreate)
+}

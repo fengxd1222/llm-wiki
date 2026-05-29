@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -105,8 +107,18 @@ func TestSocketPath(t *testing.T) {
 	if path == "" {
 		t.Fatalf("SocketPath returned empty")
 	}
-	// On macOS/Linux should be under the vault.
-	if filepath.Dir(path) != "/tmp/my-vault/.wikimind" {
-		t.Logf("SocketPath = %s (platform-specific)", path)
+	if runtime.GOOS == "windows" {
+		// Windows uses a file-based AF_UNIX socket under TempDir, never the
+		// named-pipe namespace (F-041).
+		if strings.HasPrefix(path, `\\.\pipe\`) {
+			t.Fatalf("SocketPath = %s, must not use named-pipe namespace", path)
+		}
+		if !strings.HasSuffix(path, ".sock") {
+			t.Fatalf("SocketPath = %s, want .sock suffix", path)
+		}
+	} else {
+		if filepath.Dir(path) != "/tmp/my-vault/.wikimind" {
+			t.Fatalf("SocketPath = %s, want under /tmp/my-vault/.wikimind", path)
+		}
 	}
 }
