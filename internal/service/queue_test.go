@@ -76,3 +76,26 @@ func TestCheckQueueForProposeAtCritical(t *testing.T) {
 		t.Fatalf("err = %v, want ErrQueueCritical", err)
 	}
 }
+
+// TestCheckQueueForProposeFailsClosed verifies that a DB read failure is
+// surfaced as an error instead of silently allowing the propose (F-012).
+// A failed queue-state lookup must NOT report "queue not full".
+func TestCheckQueueForProposeFailsClosed(t *testing.T) {
+	_, db := setupReviewVault(t)
+	ctx := context.Background()
+
+	// Close the underlying DB so the queue-state query fails.
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	err := CheckQueueForPropose(ctx, db, DefaultQueueLimits())
+	if err == nil {
+		t.Fatal("CheckQueueForPropose returned nil on DB error, want fail-closed error")
+	}
+	// Must not be one of the normal quota-gate sentinels; it should be the
+	// wrapped read error.
+	if err == ErrQueueBacklog || err == ErrQueueCritical {
+		t.Fatalf("err = %v, want wrapped check-queue error", err)
+	}
+}

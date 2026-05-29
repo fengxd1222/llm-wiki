@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/fengxd1222/llm-wiki/internal/index"
 )
@@ -52,9 +53,12 @@ func GetQueueState(ctx context.Context, db *index.DB, limits QueueLimits) (*Queu
 	if err != nil {
 		return nil, err
 	}
+	// Fail closed: a backlog-count read failure must not silently undercount
+	// the queue total. Undercounting would let a propose slip through the
+	// quota gate when the queue is actually full (same class as F-012).
 	backlog, err := index.CountReviewsByStatus(ctx, db, "backlog")
 	if err != nil {
-		backlog = 0 // non-fatal
+		return nil, fmt.Errorf("count backlog reviews: %w", err)
 	}
 
 	total := active + backlog
@@ -74,7 +78,10 @@ func GetQueueState(ctx context.Context, db *index.DB, limits QueueLimits) (*Queu
 func CheckQueueForPropose(ctx context.Context, db *index.DB, limits QueueLimits) error {
 	state, err := GetQueueState(ctx, db, limits)
 	if err != nil {
-		return nil // fail open
+		// Fail closed: a queue-state read failure must NOT silently allow a
+		// propose through. Surface the error so the caller rejects the write
+		// rather than bypassing the quota gate.
+		return fmt.Errorf("check queue: %w", err)
 	}
 	if state.AtCritical {
 		return ErrQueueCritical

@@ -122,3 +122,56 @@ func TestReviewIdempotencyAndAssignBundle(t *testing.T) {
 		t.Fatalf("BundleID = %q, want b-0001", got.BundleID)
 	}
 }
+
+// TestFindReviewByIdempotencyKeyEscapesWildcards verifies that a lookup key
+// containing LIKE metacharacters (% / _) does not falsely match a different
+// review whose key happens to be a literal substring (F-010).
+func TestFindReviewByIdempotencyKeyEscapesWildcards(t *testing.T) {
+	ctx := context.Background()
+	db := openTempDB(t)
+
+	// Stored review uses a concrete key with no wildcards.
+	stored := &ReviewRow{
+		ID:        "r-0001",
+		Seq:       1,
+		Agent:     "codex-cli",
+		SessionID: "sess-1",
+		Op:        "propose_page",
+		PatchPath: "wiki/_review/r-0001.patch",
+		Status:    "pending",
+		CreatedAt: "2026-05-29T12:00:00Z",
+		MetaJSON:  `{"idempotency_key":"key-abc-123","path":"wiki/claims/a.md"}`,
+	}
+	if err := InsertReview(ctx, db, stored); err != nil {
+		t.Fatalf("InsertReview: %v", err)
+	}
+
+	// A query key with '%' wildcards would, without escaping, match the
+	// stored row via LIKE. After escaping it must be treated literally and
+	// find nothing.
+	got, err := FindReviewByIdempotencyKey(ctx, db, "codex-cli", "key-%-123")
+	if err != nil {
+		t.Fatalf("FindReviewByIdempotencyKey: %v", err)
+	}
+	if got != nil {
+		t.Fatalf("wildcard key falsely matched review %+v, want no match", got)
+	}
+
+	// Likewise for the '_' single-char wildcard.
+	got, err = FindReviewByIdempotencyKey(ctx, db, "codex-cli", "key_abc_123")
+	if err != nil {
+		t.Fatalf("FindReviewByIdempotencyKey (underscore): %v", err)
+	}
+	if got != nil {
+		t.Fatalf("underscore key falsely matched review %+v, want no match", got)
+	}
+
+	// The exact literal key must still match.
+	got, err = FindReviewByIdempotencyKey(ctx, db, "codex-cli", "key-abc-123")
+	if err != nil {
+		t.Fatalf("FindReviewByIdempotencyKey (exact): %v", err)
+	}
+	if got == nil || got.ID != "r-0001" {
+		t.Fatalf("exact key lookup = %+v, want r-0001", got)
+	}
+}

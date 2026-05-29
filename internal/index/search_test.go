@@ -248,3 +248,27 @@ func seedSearchPages(t *testing.T, db *DB) {
 		}
 	}
 }
+
+func TestEscapeLikePattern(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"percent", "a%b", `a\%b`},
+		{"underscore", "a_b", `a\_b`},
+		{"backslash", `a\b`, `a\\b`},
+		// Backslash must be escaped first so an escaped metachar's leading
+		// backslash is not double-processed.
+		{"backslash_before_percent", `\%`, `\\\%`},
+		{"plain", "abc", "abc"},
+		{"all_metachars", `%_\`, `\%\_\\`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := escapeLikePattern(tc.in); got != tc.want {
+				t.Fatalf("escapeLikePattern(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}

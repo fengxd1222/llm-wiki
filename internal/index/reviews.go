@@ -94,9 +94,11 @@ func FindReviewByIdempotencyKey(ctx context.Context, db *DB, agent, key string) 
 	if key == "" {
 		return nil, nil
 	}
-	pattern := `%"idempotency_key":"` + key + `"%`
+	// escapeLikePattern 转义 key 里的 LIKE 元字符（% / _ / \），配合 ESCAPE '\' 子句，
+	// 避免 user-controlled idempotency_key 含通配符时误命中其他 review 的 meta_json。
+	pattern := `%"idempotency_key":"` + escapeLikePattern(key) + `"%`
 	row := db.SQL().QueryRowContext(ctx,
-		reviewSelectSQL+` WHERE agent = ? AND meta_json LIKE ? ORDER BY seq LIMIT 1`,
+		reviewSelectSQL+` WHERE agent = ? AND meta_json LIKE ? ESCAPE '\' ORDER BY seq LIMIT 1`,
 		agent, pattern)
 	got, err := scanReviewRow(row)
 	if err != nil {

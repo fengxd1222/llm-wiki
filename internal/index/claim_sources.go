@@ -2,9 +2,12 @@ package index
 
 import (
 	"context"
-	"database/sql"
+	"errors"
 	"fmt"
 )
+
+// ErrClaimSourceNotFound indicates that a requested claim_sources row does not exist.
+var ErrClaimSourceNotFound = errors.New("claim source not found")
 
 // ClaimSourceRow maps one row in the claim_sources table.
 type ClaimSourceRow struct {
@@ -105,7 +108,7 @@ func UpdateClaimSourceStatus(ctx context.Context, db *DB, claimID, rawID, anchor
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
-		return sql.ErrNoRows
+		return ErrClaimSourceNotFound
 	}
 	return nil
 }
