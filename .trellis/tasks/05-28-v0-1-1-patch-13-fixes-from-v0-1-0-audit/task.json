@@ -1,0 +1,32 @@
+{
+  "id": "v0-1-1-patch-13-fixes-from-v0-1-0-audit",
+  "name": "v0-1-1-patch-13-fixes-from-v0-1-0-audit",
+  "title": "v0.1.1 patch — 13 fixes from v0.1.0 audit",
+  "description": "",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "fengxd",
+  "assignee": "fengxd",
+  "createdAt": "2026-05-28",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "05-29-st1-cross-platform",
+    "05-29-st2-protocol-contract",
+    "05-29-st3-error-security",
+    "05-29-st4-concurrency-resources",
+    "05-29-st5-user-contract-ci"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

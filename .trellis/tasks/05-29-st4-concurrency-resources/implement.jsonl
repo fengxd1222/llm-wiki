@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "W2 D10 worktree spec-entry + 并发/资源/context"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "错误 wrap + best-effort 清理"}

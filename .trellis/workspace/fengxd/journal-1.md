@@ -488,3 +488,36 @@ Implemented agent_handshake, git worktree per agent, reviews/bundles persistence
 ### Next Steps
 
 - None - task complete
+
+
+## Session 15: ST2 protocol contract: log_append + sentinels + dynamic counts
+
+**Date**: 2026-05-29
+**Task**: ST2 protocol contract: log_append + sentinels + dynamic counts
+**Branch**: `main`
+
+### Summary
+
+修复 v0.1.0 审查的 4 条协议契约 finding。F-025: MCP inline errors.New 提取为包级 sentinel (ErrCrossSessionBundle/ErrReviewAlreadyBundled)，caller 改用 errors.Is，错误码字面量不变。F-027: change-log op append_log -> log_append，对齐 spec、不做向后兼容。F-048: registerTools 改为单一 toolSpecs 数据源 + 导出 ToolCount()/RegisteredTools()，mcp serve banner 动态取数。F-049: 新增 lint.RuleCount()，lint 命令 Short 动态取规则数。build/vet/test 全绿。Phase 3.3 判断: ST2 自身无新 .trellis/spec/ code-spec 需落档 (均为代码向既有权威 spec 对齐)；Spec-Drift (F-026 工具数 15->17/6->8、quality-guidelines.md:237 CROSS_SESSION_BUNDLE 示例应改 sentinel、spec-v2/docs/mcp-tools.md:672 append_log 散文残留) 已记录，留给独立 spec-only PR。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7383f51` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "测试要求 + 用户契约 + 依赖安全"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "用户输出 stdout/stderr 约定"}
