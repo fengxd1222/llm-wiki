@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fengxd1222/llm-wiki/internal/mcp"
 	"github.com/fengxd1222/llm-wiki/internal/vault"
 )
 
@@ -70,5 +71,42 @@ func TestDaemonLockManager(t *testing.T) {
 
 	if err := lm.Acquire("page-1", "sess-a", "agent-a", 300*time.Second); err != nil {
 		t.Fatalf("Acquire: %v", err)
+	}
+}
+
+// TestDaemonReapSessions exercises F-030: the daemon's session reaper actually
+// expires idle sessions registered in its SessionStore (no longer dead code).
+func TestDaemonReapSessions(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "vault")
+	if _, err := vault.Init(root); err != nil {
+		t.Fatalf("vault.Init: %v", err)
+	}
+	_ = os.MkdirAll(filepath.Join(root, ".wikimind"), 0o755)
+
+	d, err := New(Config{VaultRoot: root})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Shutdown() })
+
+	store := d.SessionStore()
+	// Register an already-idle session (no worktree → cleanup is a no-op).
+	sess := &mcp.Session{
+		Token:       "sk-idle",
+		Agent:       "claude-code",
+		SessionID:   "sess-idle",
+		IdleTimeout: 1 * time.Millisecond,
+		LastSeenAt:  time.Now().Add(-1 * time.Hour),
+		CreatedAt:   time.Now().Add(-1 * time.Hour),
+	}
+	if err := store.Register(sess); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	// Drive one reap cycle directly.
+	d.reapSessions(context.Background(), time.Now())
+
+	if _, ok := store.Lookup("sk-idle"); ok {
+		t.Fatalf("idle session was not reaped by daemon")
 	}
 }

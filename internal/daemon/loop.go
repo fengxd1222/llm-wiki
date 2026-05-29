@@ -11,8 +11,12 @@ import (
 
 	"github.com/fengxd1222/llm-wiki/internal/index"
 	"github.com/fengxd1222/llm-wiki/internal/lock"
+	"github.com/fengxd1222/llm-wiki/internal/mcp"
 	"github.com/fengxd1222/llm-wiki/internal/watcher"
 )
+
+// sessionReapInterval is how often the daemon expires idle sessions (F-030).
+const sessionReapInterval = 5 * time.Minute
 
 // Config holds daemon configuration.
 type Config struct {
@@ -22,14 +26,15 @@ type Config struct {
 
 // Daemon is the main WikiMind daemon process.
 type Daemon struct {
-	cfg     Config
-	db      *index.DB
-	lockMgr *lock.Manager
-	watcher *watcher.Watcher
-	logger  *log.Logger
-	logFile *os.File
-	cancel  context.CancelFunc
-	wg      sync.WaitGroup
+	cfg      Config
+	db       *index.DB
+	lockMgr  *lock.Manager
+	watcher  *watcher.Watcher
+	sessions *mcp.SessionStore
+	logger   *log.Logger
+	logFile  *os.File
+	cancel   context.CancelFunc
+	wg       sync.WaitGroup
 }
 
 // New creates a new daemon instance.
@@ -57,12 +62,13 @@ func New(cfg Config) (*Daemon, error) {
 	}
 
 	return &Daemon{
-		cfg:     cfg,
-		db:      db,
-		lockMgr: lock.NewManager(),
-		watcher: w,
-		logFile: logFile,
-		logger:  log.New(logFile, "[wikimindd] ", log.LstdFlags),
+		cfg:      cfg,
+		db:       db,
+		lockMgr:  lock.NewManager(),
+		watcher:  w,
+		sessions: mcp.NewSessionStore(),
+		logFile:  logFile,
+		logger:   log.New(logFile, "[wikimindd] ", log.LstdFlags),
 	}, nil
 }
 
@@ -95,6 +101,23 @@ func (d *Daemon) Run(ctx context.Context) error {
 				if len(reaped) > 0 {
 					d.logger.Printf("reaped %d expired locks", len(reaped))
 				}
+			}
+		}
+	}()
+
+	// Session expiry reaper goroutine (F-030: activate SessionStore.Expire).
+	// Expires idle sessions and cleans up their worktrees (F-029).
+	d.wg.Add(1)
+	go func() {
+		defer d.wg.Done()
+		ticker := time.NewTicker(sessionReapInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case now := <-ticker.C:
+				d.reapSessions(ctx, now)
 			}
 		}
 	}()
@@ -137,9 +160,27 @@ func (d *Daemon) Shutdown() error {
 	return nil
 }
 
+// reapSessions expires idle sessions and cleans up their worktrees.
+// Extracted so tests can drive a single reap cycle without waiting for the
+// production ticker interval.
+func (d *Daemon) reapSessions(ctx context.Context, now time.Time) {
+	expired, errs := d.sessions.ExpireAndCleanup(ctx, now, d.cfg.VaultRoot)
+	if len(expired) > 0 {
+		d.logger.Printf("expired %d idle sessions", len(expired))
+	}
+	for _, err := range errs {
+		d.logger.Printf("warn: session cleanup: %v", err)
+	}
+}
+
 // LockManager returns the daemon's lock manager.
 func (d *Daemon) LockManager() *lock.Manager {
 	return d.lockMgr
+}
+
+// SessionStore returns the daemon's session store.
+func (d *Daemon) SessionStore() *mcp.SessionStore {
+	return d.sessions
 }
 
 // DB returns the daemon's database handle.

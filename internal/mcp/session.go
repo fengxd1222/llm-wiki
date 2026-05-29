@@ -1,12 +1,15 @@
 package mcp
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"sync"
 	"time"
+
+	worktreepkg "github.com/fengxd1222/llm-wiki/internal/worktree"
 )
 
 // ErrSessionExists indicates that an agent/session_id pair is already active.
@@ -135,6 +138,24 @@ func (s *SessionStore) Expire(now time.Time) []*Session {
 		expired = append(expired, sess)
 	}
 	return expired
+}
+
+// ExpireAndCleanup expires idle sessions and removes each expired session's
+// git worktree (F-029). Worktree removal is best-effort: a failure is reported
+// via the returned errors slice but does not block expiry of other sessions.
+// Returns the expired sessions and any cleanup errors encountered.
+func (s *SessionStore) ExpireAndCleanup(ctx context.Context, now time.Time, vaultRoot string) ([]*Session, []error) {
+	expired := s.Expire(now)
+	var errs []error
+	for _, sess := range expired {
+		if sess.WorktreePath == "" {
+			continue
+		}
+		if err := worktreepkg.RemoveWorktree(ctx, vaultRoot, sess.Agent, sess.SessionID); err != nil {
+			errs = append(errs, fmt.Errorf("remove worktree for %s/%s: %w", sess.Agent, sess.SessionID, err))
+		}
+	}
+	return expired, errs
 }
 
 func (s *SessionStore) remove(token string) {

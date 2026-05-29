@@ -17,6 +17,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -98,19 +99,30 @@ type vaultBackend struct {
 	db       *index.DB
 	sessions *SessionStore
 	locks    *lock.Manager
+
+	// sync.Once guards lazy initialization so concurrent tool handlers can't
+	// race on first access (F-028). Eager init via the server constructor
+	// sets the fields directly; the Once below only covers the lazy path used
+	// by tests that build vaultBackend{} without these deps.
+	sessionsOnce sync.Once
+	locksOnce    sync.Once
 }
 
 func (b *vaultBackend) sessionStore() *SessionStore {
-	if b.sessions == nil {
-		b.sessions = NewSessionStore()
-	}
+	b.sessionsOnce.Do(func() {
+		if b.sessions == nil {
+			b.sessions = NewSessionStore()
+		}
+	})
 	return b.sessions
 }
 
 func (b *vaultBackend) lockManager() *lock.Manager {
-	if b.locks == nil {
-		b.locks = lock.NewManager()
-	}
+	b.locksOnce.Do(func() {
+		if b.locks == nil {
+			b.locks = lock.NewManager()
+		}
+	})
 	return b.locks
 }
 
